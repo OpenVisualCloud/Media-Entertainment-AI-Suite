@@ -1,1 +1,85 @@
 # Media-Entertainment-AI-Suite
+The main goal of developing AI Suites is to facilitate customer evaluation. The current Media Entertainment AI Suite include video super-resolution and smart video preprocessing. For video super-resolution, both iVSR and RAISR envoriment are supported. Users can choose models IVSR supported or RAISR to do video super-resolution.
+## Installing
+### Prerequisites
+- Linux based OS
+- [Docker](https://www.docker.com/)
+- [Kubernetes](https://kubernetes.io/docs/home/)
+- [Hlem Charts](https://helm.sh/)
+- Option: Intel GPU devices require [Intel GPU device plugin for Kubernetes](https://intel.github.io/intel-device-plugins-for-kubernetes/cmd/gpu_plugin/README.html)
+
+### Building iVSR RAISR Image
+<br> just run the below command to build ivsr_raisr image
+`./build_ivsr_raisr_docker.sh` </br>
+then will get ivsr_raisr:latest image this image include both ivsr v24.12  and raisr v23.11.1 env.
+
+### [Option] Instructions to Deploy AI Suite on Intel GPU
+
+To deploy the AI Suite on an Intel GPU, you need to set up the Intel GPU device plugin and modify the Helm chart's deployment.yaml file to require GPU resources.
+
+#### Deploy Intel GPU Device Plugin
+
+To begin, deploy the Intel GPU device plugin for Kubernetes by following the instructions [Intel GPU device plugin for Kubernetes](https://intel.github.io/intel-device-plugins-for-kubernetes/cmd/gpu_plugin/README.html#install-with-nfd).
+
+#### Update Helm Chart for AI Suite Deployment
+
+Modify the helm/templates/deployment.yaml file of the AI Suite to request the necessary GPU resources. This involves uncommenting and editing the relevant YAML configuration block as follows:
+
+```yaml
+          # Uncomment these for GPU resources requirement
+          resources:
+            limits:
+              gpu.intel.com/i915: 1
+            requests:
+              gpu.intel.com/i915: 1
+```
+Ensure the above configuration is placed correctly under the container specification where GPU resources are needed.
+With these changes, the AI Suite should be configured to utilize an Intel GPU on your Kubernetes cluster
+
+### Installing Helm Charts
+
+To install the application, use the Helm charts located in the [/helm](helm) directory. Before proceeding with the installation, ensure that you provide the necessary values for specific parameters in the `values.yaml` file. Below is an example of the settings in `values.yaml`. For detailed information on using ivsr and raisr parameters, please refer to their documentation.
+
+```yaml
+# Set directory path of test video and output and models
+test_video_dir: /home/spr-lxx/workspace/aime_cemp_mwc/demo_video/bbb/input/
+output_dir: /home/spr-lxx/workspace/output/
+model_dir: /home/spr-lxx/workspace/ivsr/ivsr_2024.05/SVP_Basic/dunet_2024.01/INT8-performance/
+
+# Configuration of Filters
+# To configure the filters for the AI suite service, users can select either ivsr or raisr for video processing by setting the `selected` property to true.
+
+filter_parameters:
+  ivsr:
+    selected: true # true mean select ivsr sdk to do VSR or Video Process
+    configuration:
+      format: rgb24
+      model_name: dunet.xml
+      nif: 1
+      model_type: 1
+      normalize_factor: 1.0
+      device: CPU
+
+  raisr:
+    selected: false
+    configuration:
+      threadcount: 20
+      ratio: 2
+      bits: 8
+      passes: 1
+      asm: avx512
+      filterfolder: filters_2x/filters_highres
+
+# Specify codec parameter, current supports libx264 and libx265 encoders
+codec_parameters:
+  encoder: libx264
+  bitrate: 5M
+  profile: main
+  pix_fmt: yuv420p
+```
+User can install the Chart using the following command after configuring the `values.yaml` file:
+
+```bash
+helm install ai-suite ./helm
+```
+Subsequently, the Helm chart named `ai-suite` was deployed, and the `ai-suite-server-xxx` pod was created. This pod empolys ffmpeg to process videos located within the `test_video_dir`, generates outputs in the `output_dir`. The status of `ai-suite-server-xxx` pod will be displayed "Completed" after all videos been processed.

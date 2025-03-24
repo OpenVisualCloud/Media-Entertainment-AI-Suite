@@ -1,0 +1,112 @@
+##   INTEL CONFIDENTIAL 
+## 
+##   Copyright (C) 2024 Intel Corporation 
+## 
+##   This software and the related documents are Intel copyrighted materials, 
+##   and your use of them is governed by the express license under which they 
+##   were provided to you ("License"). Unless the License provides otherwise, 
+##   you may not use, modify, copy, publish, distribute, disclose or transmit 
+##   this software or the related documents without Intel's prior written permission. 
+## 
+##   This software and the related documents are provided as is, with no 
+##   express or implied warranties, other than those that are expressly stated in 
+##   the License. 
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ai-suite-server
+  labels:
+    app: ai-suite-server
+spec:
+  #selector:
+  #  matchLabels:
+  #    app: ai-suite-server
+  template:
+    metadata:
+      labels:
+        app: ai-suite-server
+    spec:
+      containers:
+        - name: ai-suite-server
+          image: ivsr_raisr:latest
+          imagePullPolicy: IfNotPresent
+          #TBD - figure out some basic resource requests
+          #resources:
+          #  limits:
+          #    gpu.intel.com/i915: 1
+          #  requests:
+          #    gpu.intel.com/i915: 1
+          volumeMounts:
+            - name: test-video-dir
+              mountPath: /workspace/test_video
+            - name: test-output-dir
+              mountPath: /workspace/test_output
+            - name: model-dir
+              mountPath: /workspace/model
+          args:
+          - /bin/bash
+          - -c
+          - >-
+            for i in $(find /workspace/test_video -name "*.mp4");
+            do 
+              video_path="$i"
+              video_name="${video_path##*/}"
+              video_name="${video_name%.*}"
+              model_path=/workspace/model/{{ .Values.modelName }}
+              ivsr_filter_parameters=$(cat <<-EOF | sed ':a;N;$!ba;s/\n\s*//g'
+                format={{ .Values.filter_parameters.ivsr.configuration.format }},
+                dnn_processing=dnn_backend=ivsr:
+                model=${model_path}/{{ .Values.filter_parameters.ivsr.configuration.model_name }}:
+                input=input:output=output:
+                nif={{ .Values.filter_parameters.ivsr.configuration.nif }}:
+                backend_configs='device={{ .Values.filter_parameters.ivsr.configuration.device }}&
+                model_type={{ .Values.filter_parameters.ivsr.configuration.model_type }}&
+                normalize_factor={{ .Values.filter_parameters.ivsr.configuration.normalize_factor }}'
+            EOF
+              )
+              raisr_filter_parameters=$(cat <<-EOF | sed ':a;N;$!ba;s/\n\s*//g'
+                raisr=threadcount={{ .Values.filter_parameters.raisr.configuration.threadcount }}:
+                ratio={{ .Values.filter_parameters.raisr.configuration.ratio }}:
+                bits={{ .Values.filter_parameters.raisr.configuration.bits }}:
+                passes={{ .Values.filter_parameters.raisr.configuration.passes }}:
+                asm={{ .Values.filter_parameters.raisr.configuration.asm }}:
+                filterfolder=/workspace/raisr/{{ .Values.filter_parameters.raisr.configuration.filterfolder }}:
+            EOF
+              )
+
+              filter_name="ivsr"
+              filters=$ivsr_filter_parameters
+              if [ "{{ .Values.filter_parameters.raisr.selected }}" = "true" ]; then
+                filters=$raisr_filter_parameters
+                filter_name="raisr"
+              fi
+
+              codec_parameters="-c:v {{ .Values.codec_parameters.encoder }}
+                -c:a copy  
+                -b:v {{ .Values.codec_parameters.bitrate }} 
+                -profile:v {{ .Values.codec_parameters.profile }} 
+                -pix_fmt {{ .Values.codec_parameters.pix_fmt }}"
+
+              sleep 1s;
+              ffmpeg -y -i ${video_path} -vf ${filters} ${codec_parameters} /workspace/test_output/${filter_name}_output_${video_name}.mp4
+              echo $video_name;
+            done;
+      volumes:
+        - name: timezone
+          hostPath:
+            path: /etc/localtime
+            type: FileOrCreate
+        - name: test-video-dir
+          hostPath:
+            path: {{ .Values.test_video_dir }}
+            type: Directory
+        - name: test-output-dir
+          hostPath:
+            path: {{ .Values.output_dir }}
+            type:  DirectoryOrCreate
+        - name: model-dir
+          hostPath:
+            path: {{ .Values.model_dir}}
+      restartPolicy: Never
+  backoffLimit: 4
