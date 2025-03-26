@@ -1,1 +1,1 @@
-# Media-Entertainment-AI-Suite
+# Media & Entertainment AI Suite
