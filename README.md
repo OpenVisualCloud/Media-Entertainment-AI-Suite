@@ -1,4 +1,4 @@
-# Media-Entertainment-AI-Suite
+# Media & Entertainment AI Suite
 The main goal of developing AI Suites is to facilitate customer evaluation. The current Media Entertainment AI Suite include video super-resolution and smart video preprocessing. For video super-resolution, both iVSR and RAISR envoriment are supported. Users can choose models IVSR supported or RAISR to do video super-resolution.
 ## Installing
 ### Prerequisites
