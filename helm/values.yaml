@@ -29,7 +29,7 @@ filter_parameters:
       ratio: 2
       bits: 8
       passes: 1
-      asm: opencl
+      asm: avx512
       filterfolder: filters_2x/filters_highres
 
 # Specify codec parameter, current supports libx264 and libx265 encoders

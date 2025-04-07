@@ -72,7 +72,7 @@ RUN echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] http
 ARG WORKSPACE=/workspace
 ARG IVSR_DIR=${WORKSPACE}/ivsr
 ARG IVSR_REPO=https://github.com/OpenVisualCloud/iVSR.git
-ARG IVSR_VERSION=v24.12
+ARG IVSR_VERSION=v25.03
 
 WORKDIR ${IVSR_DIR}
 RUN git clone ${IVSR_REPO} ${IVSR_DIR} && \
@@ -307,7 +307,7 @@ ENV C_INCLUDE_PATH="/opt/intel/oneapi/ipp/latest/include/ipp"
 ARG FFMPEG_DIR=${WORKSPACE}/ffmpeg
 
 ARG FFMPEG_REPO=https://github.com/FFmpeg/FFmpeg.git
-ARG FFMPEG_VERSION=n6.1
+ARG FFMPEG_VERSION=n7.1
 WORKDIR ${FFMPEG_DIR}
 RUN git clone ${FFMPEG_REPO} ${FFMPEG_DIR} && \
     git checkout ${FFMPEG_VERSION}
@@ -320,13 +320,9 @@ RUN { set -e; \
     git am --whitespace=fix ${patch_file}; \
   done; }
 
-# apply patches of raisr
-RUN cp ${RAISR_DIR}/ffmpeg/vf_raisr*.c ${FFMPEG_DIR}/libavfilter/ && \
-  git -C "${FFMPEG_DIR}" am "${RAISR_DIR}/ffmpeg/"0001*.patch && \
-  sed -i '3822i raisr_opencl_filter_deps="opencl"'                                         "${FFMPEG_DIR}/"configure && \
-  sed -i '562i OBJS-$(CONFIG_RAISR_OPENCL_FILTER)           += vf_raisr_opencl.o opencl.o' "${FFMPEG_DIR}/"libavfilter/Makefile && \
-  sed -i '415i extern const AVFilter ff_vf_raisr_opencl;'                                  "${FFMPEG_DIR}/"libavfilter/allfilters.c && \
-  sed -i '28i #include "video.h"'                                                          "${FFMPEG_DIR}/"libavfilter/vf_raisr_opencl.c
+# apply patches of raisr ffmpeg
+COPY ./patches/* ${FFMPEG_DIR}/
+RUN git -C "${FFMPEG_DIR}" am "${FFMPEG_DIR}/0001-Upgrade-Raisr-ffmpeg-plugin-to-n7.1-from-n6.1.1.patch"
 
 RUN if [ -f "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ]; then \
       . ${CUSTOM_OV_INSTALL_DIR}/setvars.sh ; \

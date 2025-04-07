@@ -60,9 +60,9 @@ spec:
                 model=${model_path}/{{ .Values.filter_parameters.ivsr.configuration.model_name }}:
                 input=input:output=output:
                 nif={{ .Values.filter_parameters.ivsr.configuration.nif }}:
-                backend_configs='device={{ .Values.filter_parameters.ivsr.configuration.device }}&
-                model_type={{ .Values.filter_parameters.ivsr.configuration.model_type }}&
-                normalize_factor={{ .Values.filter_parameters.ivsr.configuration.normalize_factor }}'
+                device={{ .Values.filter_parameters.ivsr.configuration.device }}:
+                model_type={{ .Values.filter_parameters.ivsr.configuration.model_type }}:
+                normalize_factor={{ .Values.filter_parameters.ivsr.configuration.normalize_factor }}
             EOF
               )
               raisr_filter_parameters=$(cat <<-EOF | sed ':a;N;$!ba;s/\n\s*//g'

@@ -5,7 +5,7 @@ docker build --build-arg http_proxy=$http_proxy \
   --build-arg ENABLE_OV_PATCH=false \
   --build-arg OV_VERSION=2024.5 \
   -f Dockerfile -t ivsr_raisr \
-  ../
+  ./
 
 # load ivsr_raisr:latest image into crictl
 docker save -o ivsr_raisr.tar ivsr_raisr:latest

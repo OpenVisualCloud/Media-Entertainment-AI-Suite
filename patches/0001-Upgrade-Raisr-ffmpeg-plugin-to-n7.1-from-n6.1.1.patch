@@ -1,0 +1,746 @@
+From 3f14c752fdab1516d727b7f100ccee174f458866 Mon Sep 17 00:00:00 2001
+From: Xiaoxia Liang <xiaoxia.liang@intel.com>
+Date: Thu, 3 Apr 2025 17:40:44 +0000
+Subject: [PATCH] Upgrade Raisr ffmpeg plugin to n7.1 from n6.1.1
+
+Signed-off-by: Xiaoxia Liang <xiaoxia.liang@intel.com>
+---
+ configure                     |  13 ++
+ libavfilter/Makefile          |   2 +
+ libavfilter/allfilters.c      |   2 +
+ libavfilter/vf_raisr.c        | 367 ++++++++++++++++++++++++++++++++++
+ libavfilter/vf_raisr_opencl.c | 270 +++++++++++++++++++++++++
+ 5 files changed, 654 insertions(+)
+ create mode 100644 libavfilter/vf_raisr.c
+ create mode 100644 libavfilter/vf_raisr_opencl.c
+
+diff --git a/configure b/configure
+index 977cc94b60..561ff70552 100755
+--- a/configure
++++ b/configure
+@@ -241,6 +241,7 @@ External library support:
+   --enable-libgsm          enable GSM de/encoding via libgsm [no]
+   --enable-libiec61883     enable iec61883 via libiec61883 [no]
+   --enable-libilbc         enable iLBC de/encoding via libilbc [no]
++  --enable-libipp          enable Intel IPP libary based scalin
+   --enable-libjack         enable JACK audio sound server [no]
+   --enable-libjxl          enable JPEG XL de/encoding via libjxl [no]
+   --enable-libklvanc       enable Kernel Labs VANC processing [no]
+@@ -1928,6 +1929,7 @@ EXTERNAL_LIBRARY_LIST="
+     libgsm
+     libiec61883
+     libilbc
++    libipp
+     libjack
+     libjxl
+     libklvanc
+@@ -3965,6 +3967,7 @@ transpose_opencl_filter_deps="opencl"
+ transpose_vaapi_filter_deps="vaapi VAProcPipelineCaps_rotation_flags"
+ transpose_vt_filter_deps="videotoolbox VTPixelRotationSessionCreate"
+ transpose_vulkan_filter_deps="vulkan spirv_compiler"
++raisr_opencl_filter_deps="opencl"
+ unsharp_opencl_filter_deps="opencl"
+ uspp_filter_deps="gpl avcodec"
+ vaguedenoiser_filter_deps="gpl"
+@@ -6982,6 +6985,16 @@ enabled libopus           && {
+     }
+ }
+ enabled libplacebo        && require_pkg_config libplacebo "libplacebo >= 4.192.0" libplacebo/vulkan.h pl_vulkan_create
++if enabled libipp; then
++   ipp_header_for_check='ippcore.h'
++   case $target_os in
++       mingw32*|mingw64*)
++           ipp_header_for_check='_mingw.h ippcore.h'
++           ;;
++   esac
++   check_lib libipp "$ipp_header_for_check" ippInit -Wl,--start-group -lippi -lipps -lippcore -lippvm -Wl,--end-group ||
++   die "ERROR: Intel IPP not found"
++fi
+ enabled libpulse          && require_pkg_config libpulse libpulse pulse/pulseaudio.h pa_context_new
+ enabled libqrencode       && require_pkg_config libqrencode libqrencode qrencode.h QRcode_encodeString
+ enabled libquirc          && require libquirc quirc.h quirc_decode -lquirc
+diff --git a/libavfilter/Makefile b/libavfilter/Makefile
+index 91487afb21..dbf1114d78 100644
+--- a/libavfilter/Makefile
++++ b/libavfilter/Makefile
+@@ -440,6 +440,7 @@ OBJS-$(CONFIG_PSNR_FILTER)                   += vf_psnr.o framesync.o
+ OBJS-$(CONFIG_PULLUP_FILTER)                 += vf_pullup.o
+ OBJS-$(CONFIG_QP_FILTER)                     += vf_qp.o
+ OBJS-$(CONFIG_QUIRC_FILTER)                  += vf_quirc.o
++OBJS-$(CONFIG_RAISR_FILTER)                  += vf_raisr.o
+ OBJS-$(CONFIG_RANDOM_FILTER)                 += vf_random.o
+ OBJS-$(CONFIG_READEIA608_FILTER)             += vf_readeia608.o
+ OBJS-$(CONFIG_READVITC_FILTER)               += vf_readvitc.o
+@@ -563,6 +564,7 @@ OBJS-$(CONFIG_XBR_FILTER)                    += vf_xbr.o
+ OBJS-$(CONFIG_XCORRELATE_FILTER)             += vf_convolve.o framesync.o
+ OBJS-$(CONFIG_XFADE_FILTER)                  += vf_xfade.o
+ OBJS-$(CONFIG_XFADE_OPENCL_FILTER)           += vf_xfade_opencl.o opencl.o opencl/xfade.o
++OBJS-$(CONFIG_RAISR_OPENCL_FILTER)           += vf_raisr_opencl.o opencl.o
+ OBJS-$(CONFIG_XFADE_VULKAN_FILTER)           += vf_xfade_vulkan.o vulkan.o vulkan_filter.o
+ OBJS-$(CONFIG_XMEDIAN_FILTER)                += vf_xmedian.o framesync.o
+ OBJS-$(CONFIG_XPSNR_FILTER)                  += vf_xpsnr.o framesync.o
+diff --git a/libavfilter/allfilters.c b/libavfilter/allfilters.c
+index 9819f0f95b..92a384ca68 100644
+--- a/libavfilter/allfilters.c
++++ b/libavfilter/allfilters.c
+@@ -415,6 +415,8 @@ extern const AVFilter ff_vf_pullup;
+ extern const AVFilter ff_vf_qp;
+ extern const AVFilter ff_vf_qrencode;
+ extern const AVFilter ff_vf_quirc;
++extern const AVFilter ff_vf_raisr;
++extern const AVFilter ff_vf_raisr_opencl;
+ extern const AVFilter ff_vf_random;
+ extern const AVFilter ff_vf_readeia608;
+ extern const AVFilter ff_vf_readvitc;
+diff --git a/libavfilter/vf_raisr.c b/libavfilter/vf_raisr.c
+new file mode 100644
+index 0000000000..8b512a66a5
+--- /dev/null
++++ b/libavfilter/vf_raisr.c
+@@ -0,0 +1,367 @@
++/*
++ * Intel Library for Video Super Resolution ffmpeg plugin
++ *
++ * Copyright (c) 2021 Intel Corporation
++ *
++ * FFmpeg is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * FFmpeg is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++/**
++ * @file
++ * Raisr filter
++ *
++ * @see https://arxiv.org/pdf/1606.01299.pdf
++ */
++
++#include "libavutil/avassert.h"
++#include "libavutil/imgutils.h"
++#include "libavutil/opt.h"
++#include "libavutil/pixfmt.h"
++#include "avfilter.h"
++#include "formats.h"
++// #include "internal.h"
++#include "video.h"
++#include "raisr/RaisrHandler.h"
++#include "raisr/RaisrDefaults.h"
++#include <unistd.h>
++
++#define MIN_RATIO 1
++#define MAX_RATIO 2
++#define DEFAULT_RATIO 2
++
++#define MIN_THREADCOUNT 1
++#define MAX_THREADCOUNT 120
++#define DEFAULT_THREADCOUNT 20
++
++#define BLENDING_RANDOMNESS 1
++#define BLENDING_COUNT_OF_BITS_CHANGED 2
++
++struct plane_info
++{
++    int width;
++    int height;
++    int linesize;
++};
++
++typedef struct RaisrContext
++{
++    const AVClass *class;
++    float ratio;
++    int bits;
++    char *range;
++    int threadcount;
++    char *filterfolder;
++    int blending;
++    int passes;
++    int mode;
++    char *asmStr;
++    int platform;
++    int device;
++
++    struct plane_info inplanes[3];
++    int nb_planes;
++    int framecount;
++    int evenoutput;
++} RaisrContext;
++
++#define OFFSET(x) offsetof(RaisrContext, x)
++#define FLAGS AV_OPT_FLAG_FILTERING_PARAM | AV_OPT_FLAG_VIDEO_PARAM
++static const AVOption raisr_options[] = {
++    {"ratio", "ratio of the upscaling, between 1 and 2", OFFSET(ratio), AV_OPT_TYPE_FLOAT, {.dbl = DEFAULT_RATIO}, MIN_RATIO, MAX_RATIO, FLAGS},
++    {"bits", "bit depth", OFFSET(bits), AV_OPT_TYPE_INT, {.i64 = 8}, 8, 10, FLAGS},
++    {"range", "input color range", OFFSET(range), AV_OPT_TYPE_STRING, {.str = "video"}, 0, 0, FLAGS},
++    {"threadcount", "thread count", OFFSET(threadcount), AV_OPT_TYPE_INT, {.i64 = DEFAULT_THREADCOUNT}, MIN_THREADCOUNT, MAX_THREADCOUNT, FLAGS},
++    {"filterfolder", "absolute filter folder path", OFFSET(filterfolder), AV_OPT_TYPE_STRING, {.str = "filters_2x/filters_lowres"}, 0, 0, FLAGS},
++    {"blending", "CT blending mode (1: Randomness, 2: CountOfBitsChanged)", OFFSET(blending), AV_OPT_TYPE_INT, {.i64 = BLENDING_COUNT_OF_BITS_CHANGED}, BLENDING_RANDOMNESS, BLENDING_COUNT_OF_BITS_CHANGED, FLAGS},
++    {"passes", "passes to run (1: one pass, 2: two pass)", OFFSET(passes), AV_OPT_TYPE_INT, {.i64 = 1}, 1, 2, FLAGS},
++    {"mode", "mode for two pass (1: upscale in 1st pass, 2: upscale in 2nd pass)", OFFSET(mode), AV_OPT_TYPE_INT, {.i64 = 1}, 1, 2, FLAGS},
++    {"asm", "x86 asm type: (avx512fp16, avx512, avx2 or opencl)", OFFSET(asmStr), AV_OPT_TYPE_STRING, {.str = "avx512fp16"}, 0, 0, FLAGS},
++    {"platform", "select the platform", OFFSET(platform), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, FLAGS},
++    {"device", "select the device", OFFSET(device), AV_OPT_TYPE_INT, {.i64 = 0}, 0, INT_MAX, FLAGS},
++    {"evenoutput", "make output size as even number (0: ignore, 1: subtract 1px if needed)", OFFSET(evenoutput), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 1, FLAGS},
++    {NULL}};
++
++AVFILTER_DEFINE_CLASS(raisr);
++
++static av_cold int init(AVFilterContext *ctx)
++{
++    RaisrContext *raisr = ctx->priv;
++
++    char cwd[255];
++    if (getcwd(cwd, 255) == NULL)
++        return AVERROR(ENOENT);
++
++    char basepath[255];
++    strcpy(basepath, cwd);
++    if (strcmp(raisr->filterfolder, "") == 0)
++    {
++        strcat(basepath, "/filters_2x/filters_lowres");
++    }
++    else
++    {
++        strcpy(basepath, raisr->filterfolder);
++    }
++
++    RangeType rangeType = VideoRange;
++    if (strcmp(raisr->range, "full") == 0)
++        rangeType = FullRange;
++
++    ASMType asm_t;
++    if (strcmp(raisr->asmStr, "avx2") == 0)
++        asm_t = AVX2;
++    else if (strcmp(raisr->asmStr, "avx512") == 0)
++        asm_t = AVX512;
++    else if (strcmp(raisr->asmStr, "opencl") == 0)
++        asm_t = OpenCL;
++    else if (strcmp(raisr->asmStr, "avx512fp16") == 0)
++        asm_t = AVX512_FP16;
++    else {
++        av_log(ctx, AV_LOG_VERBOSE, "asm field expects avx2 or avx512 but got: %s\n", raisr->asmStr);
++        return AVERROR(ENOENT);
++    }
++
++    if (asm_t == OpenCL)
++    {
++        RNLERRORTYPE ret = RNLHandler_SetOpenCLContext(NULL, NULL, raisr->platform, raisr->device);
++        if (ret != RNLErrorNone)
++        {
++            av_log(ctx, AV_LOG_ERROR, "RNLHandler_SetOpenCLContext error\n");
++            return AVERROR(ENOMEM);
++        }
++    }
++
++
++    RNLERRORTYPE ret = RNLHandler_Init(basepath, raisr->ratio, raisr->bits, rangeType, raisr->threadcount, asm_t, raisr->passes, raisr->mode);
++
++    if (ret != RNLErrorNone)
++    {
++        av_log(ctx, AV_LOG_VERBOSE, "RNLHandler_Init error\n");
++        return AVERROR(ENOMEM);
++    }
++    raisr->framecount = 0;
++
++    return 0;
++}
++
++static const enum AVPixelFormat raisr_fmts[] = {
++    AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10LE,
++    AV_PIX_FMT_YUV422P, AV_PIX_FMT_YUV444P,
++    AV_PIX_FMT_YUV422P10LE, AV_PIX_FMT_YUV444P10LE, AV_PIX_FMT_NONE
++};
++
++static int query_formats(AVFilterContext *ctx)
++{
++    int raisr_fmts[] = {AV_PIX_FMT_YUV420P, AV_PIX_FMT_YUV420P10LE,
++                        AV_PIX_FMT_YUV422P, AV_PIX_FMT_YUV422P10LE, AV_PIX_FMT_YUV444P,
++                        AV_PIX_FMT_YUV444P10LE, AV_PIX_FMT_NONE};
++    AVFilterFormats *fmts_list;
++
++    fmts_list = ff_make_format_list(raisr_fmts);
++    if (!fmts_list)
++    {
++        return AVERROR(ENOMEM);
++    }
++    return ff_set_common_formats(ctx, fmts_list);
++}
++
++static int config_props_input(AVFilterLink *inlink)
++{
++    AVFilterContext *ctx = inlink->dst;
++    RaisrContext *raisr = ctx->priv;
++
++    // Return n a pixel format descriptor for provided pixel format or NULL if this pixel format is unknown.
++    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(inlink->format);
++
++    // Determine the number of planes  (will be 3 except for grayscale)
++    raisr->nb_planes = inlink->format == AV_PIX_FMT_GRAY8 ? 1 : 3;
++
++    // for each plane
++    for (int p = 0; p < raisr->nb_planes; p++)
++    {
++        // Get a pointer to the plane info
++        struct plane_info *plane = &raisr->inplanes[p];
++
++        // Get horziontal and vertical power of 2 factors
++        int vsub = p ? desc->log2_chroma_h : 0;
++        int hsub = p ? desc->log2_chroma_w : 0;
++
++        // Determine the width and height of this plane/channel
++        plane->width = AV_CEIL_RSHIFT(inlink->w, hsub);
++        plane->height = AV_CEIL_RSHIFT(inlink->h, vsub);
++        plane->linesize = av_image_get_linesize(inlink->format, plane->width, p);
++    }
++    return 0;
++}
++
++static int config_props_output(AVFilterLink *outlink)
++{
++    AVFilterContext *ctx = outlink->src;
++    RaisrContext *raisr = ctx->priv;
++    AVFilterLink *inlink0 = outlink->src->inputs[0];
++
++    outlink->w = inlink0->w * raisr->ratio;
++    outlink->h = inlink0->h * raisr->ratio;
++
++    // resolution of output needs to be even due to some encoders support only even resolution
++    if (raisr->evenoutput == 1) {
++        outlink->w -= outlink->w % 2;
++        outlink->h -= outlink->h % 2;
++    }
++
++    return 0;
++}
++
++static int filter_frame(AVFilterLink *inlink, AVFrame *in)
++{
++    AVFilterContext *ctx = inlink->dst;
++    RaisrContext *raisr = ctx->priv;
++    AVFilterLink *outlink = ctx->outputs[0];
++    AVFrame *out;
++    RNLERRORTYPE ret;
++    VideoDataType vdt_in[3] = { 0 };
++    VideoDataType vdt_out[3] = { 0 };
++    const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(outlink->format);
++
++    av_log(ctx, AV_LOG_VERBOSE, "Frame\n");
++
++    // Request a picture buffer - must be released with. This must be unreferenced with
++    // avfilter_unref_buffer when you are finished with it
++    out = ff_get_video_buffer(outlink, outlink->w, outlink->h);
++    if (!out)
++    {
++        // Unable to get a picture buffer.
++        // Delete the input buffer and return
++        av_frame_free(&in);
++        return AVERROR(ENOMEM);
++    }
++    av_log(ctx, AV_LOG_VERBOSE, "Got Frame %dx%d\n", outlink->w, outlink->h);
++
++    // Copy only "metadata" fields from src to dst.
++    // Metadata for the purpose of this function are those fields that do not affect
++    // the data layout in the buffers.
++    av_frame_copy_props(out, in);
++    av_log(ctx, AV_LOG_VERBOSE, "Copied props \n");
++
++    // For each plane
++    for (int p = 0; p < raisr->nb_planes; p++)
++    {
++        // get the plane data
++        struct plane_info *plane = &raisr->inplanes[p];
++
++        // make sure the input data is valid
++        av_assert1(in->data[p]);
++
++        // get a pointer to the out plane data
++        av_assert1(out->data[p]);
++
++        // fill in the input video data type structure
++        vdt_in[p].pData = in->data[p];
++        vdt_in[p].width = plane->width;
++        vdt_in[p].height = plane->height;
++        vdt_in[p].step = in->linesize[p];
++
++        // Get horziontal and vertical power of 2 factors
++        int vsub = p ? desc->log2_chroma_h : 0;
++        int hsub = p ? desc->log2_chroma_w : 0;
++
++        // fill in the output video data type structure
++        vdt_out[p].pData = out->data[p];
++        // Determine the width and height of this plane/channel
++        vdt_out[p].width = AV_CEIL_RSHIFT(out->width, hsub);
++        vdt_out[p].height = AV_CEIL_RSHIFT(out->height, vsub);
++        vdt_out[p].step = out->linesize[p];
++    }
++    if (raisr->framecount == 0)
++    {
++        // Process the planes
++        ret = RNLHandler_SetRes(
++            &vdt_in[0],
++            &vdt_in[1],
++            &vdt_in[2],
++            &vdt_out[0],
++            &vdt_out[1],
++            &vdt_out[2]);
++
++        if (ret != RNLErrorNone)
++        {
++            av_log(ctx, AV_LOG_INFO, "RNLHandler_SetRes error\n");
++            return AVERROR(ENOMEM);
++        }
++    }
++
++    // Process the planes
++    ret = RNLHandler_Process(
++        &vdt_in[0],
++        &vdt_in[1],
++        &vdt_in[2],
++        &vdt_out[0],
++        &vdt_out[1],
++        &vdt_out[2],
++        raisr->blending);
++
++    if (ret != RNLErrorNone)
++    {
++        av_log(ctx, AV_LOG_INFO, "RNLHandler_Process error\n");
++        return AVERROR(ENOMEM);
++    }
++
++    // increment framecount
++    raisr->framecount++;
++
++    // Free the input frame
++    av_frame_free(&in);
++
++    // ff_filter_frame sends a frame of data to the next filter
++    // outlink is the output link over which the data is being sent
++    // out is a reference to the buffer of data being sent.
++    // The receiving filter will free this reference when it no longer
++    // needs it or pass it on to the next filter.
++    return ff_filter_frame(outlink, out);
++}
++
++static av_cold void uninit(AVFilterContext *ctx)
++{
++    RNLHandler_Deinit();
++}
++
++static const AVFilterPad raisr_inputs[] = {
++    {
++        .name = "default",
++        .type = AVMEDIA_TYPE_VIDEO,
++        .config_props = config_props_input,
++        .filter_frame = filter_frame,
++    }
++};
++
++static const AVFilterPad raisr_outputs[] = {
++    {
++        .name = "default",
++        .type = AVMEDIA_TYPE_VIDEO,
++        .config_props = config_props_output,
++    }
++};
++
++AVFilter ff_vf_raisr = {
++    .name = "raisr",
++    .description = NULL_IF_CONFIG_SMALL("Perform Raisr super resolution."),
++    .priv_size = sizeof(RaisrContext),
++    .init = init,
++    .uninit = uninit,
++    FILTER_PIXFMTS_ARRAY(raisr_fmts),
++    FILTER_INPUTS(raisr_inputs),
++    FILTER_OUTPUTS(raisr_outputs),
++    .priv_class = &raisr_class,
++    .flags = AVFILTER_FLAG_SUPPORT_TIMELINE_GENERIC,
++};
+diff --git a/libavfilter/vf_raisr_opencl.c b/libavfilter/vf_raisr_opencl.c
+new file mode 100644
+index 0000000000..247cae1f05
+--- /dev/null
++++ b/libavfilter/vf_raisr_opencl.c
+@@ -0,0 +1,270 @@
++/*
++ * Intel Library for Video Super Resolution ffmpeg plugin
++ *
++ * Copyright (c) 2023 Intel Corporation
++ *
++ * FFmpeg is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * FFmpeg is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this program; if not, write to the Free Software
++ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
++ */
++
++#include "raisr/RaisrHandler.h"
++#include "raisr/RaisrDefaults.h"
++#include "libavutil/opt.h"
++#include "avfilter.h"
++// #include "internal.h"
++#include "opencl.h"
++#include "libavutil/pixdesc.h"
++#include "video.h"
++
++#define MIN_RATIO 1
++#define MAX_RATIO 2
++#define DEFAULT_RATIO 2
++
++typedef struct RaisrOpenCLContext {
++    OpenCLFilterContext ocf;
++
++    int initialised;
++    float ratio;
++    int bits;
++    char *filterfolder;
++    BlendingMode blending;
++    int passes;
++    int mode;
++    RangeType range;
++    enum AVPixelFormat sw_format;
++    int evenoutput;
++} RaisrOpenCLContext;
++
++
++static int raisr_opencl_init(AVFilterContext *avctx)
++{
++    RaisrOpenCLContext *ctx = avctx->priv;
++    RNLERRORTYPE err;
++
++    err = RNLHandler_SetOpenCLContext(ctx->ocf.hwctx->context, ctx->ocf.hwctx->device_id, 0, 0);
++    if (err != RNLErrorNone) {
++        av_log(avctx, AV_LOG_ERROR, "RNLHandler_SetExternalOpenCLContext failed\n");
++        return AVERROR(ENAVAIL);
++    }
++
++    err = RNLHandler_Init(ctx->filterfolder, ctx->ratio, ctx->bits, ctx->range, 1,
++                          OpenCLExternal, ctx->passes, ctx->mode);
++    if (err != RNLErrorNone) {
++        av_log(avctx, AV_LOG_ERROR, "RNLInit failed\n");
++        return AVERROR(ENAVAIL);
++    }
++    return 0;
++}
++
++static int raisr_opencl_filter_frame(AVFilterLink *inlink, AVFrame *input)
++{
++    AVFilterContext    *avctx = inlink->dst;
++    AVFilterLink     *outlink = avctx->outputs[0];
++    RaisrOpenCLContext *ctx = avctx->priv;
++    AVFrame *output = NULL;
++    const AVPixFmtDescriptor *desc;
++    int err, wsub, hsub;
++    int nb_planes = 0;
++    VideoDataType vdt_in[3] = { 0 };
++    VideoDataType vdt_out[3] = { 0 };
++
++    av_log(ctx, AV_LOG_DEBUG, "Filter input: %s, %ux%u (%"PRId64").\n",
++           av_get_pix_fmt_name(input->format),
++           input->width, input->height, input->pts);
++
++    if (!input->hw_frames_ctx)
++        return AVERROR(EINVAL);
++
++    output = ff_get_video_buffer(outlink, outlink->w, outlink->h);
++    if (!output) {
++        err = AVERROR(ENOMEM);
++        goto fail;
++    }
++    desc = av_pix_fmt_desc_get(ctx->sw_format);
++    if (!desc) {
++        err = AVERROR(EINVAL);
++        goto fail;
++    }
++
++    for(int p = 0; p < desc->nb_components; p++)
++        if (desc->comp[p].plane > nb_planes)
++            nb_planes = desc->comp[p].plane;
++
++    for (int p = 0; p <= nb_planes; p++) {
++        wsub = p ? 1 << desc->log2_chroma_w : 1;
++        hsub = p ? 1 << desc->log2_chroma_h : 1;
++        vdt_in[p].pData = input->data[p];
++        vdt_in[p].width = input->width / wsub;
++        vdt_in[p].height = input->height / hsub;
++        vdt_in[p].step = input->linesize[p];
++        vdt_in[p].bitShift = desc->comp[p].shift;
++        // fill in the output video data type structure
++        vdt_out[p].pData = output->data[p];
++        vdt_out[p].width = output->width / wsub;
++        vdt_out[p].height = output->height / hsub;
++        vdt_out[p].step = output->linesize[p];
++        vdt_out[p].bitShift = desc->comp[p].shift;
++    }
++
++    if (!ctx->initialised) {
++        err = RNLHandler_SetRes(&vdt_in[0], &vdt_in[1], &vdt_in[2],
++                                &vdt_out[0], &vdt_out[1], &vdt_out[2]);
++        if (err != RNLErrorNone) {
++            av_log(ctx, AV_LOG_ERROR, "RNLHandler_SetRes error\n");
++            return AVERROR(ENOMEM);
++        }
++        ctx->initialised = 1;
++    }
++
++    err = RNLHandler_Process(&vdt_in[0], &vdt_in[1], &vdt_in[2],
++                             &vdt_out[0], &vdt_out[1], &vdt_out[2],
++                             ctx->blending);
++    if (err != RNLErrorNone) {
++        av_log(ctx, AV_LOG_ERROR, "RNLHandler_Process error\n");
++        return AVERROR(ENOMEM);
++    }
++
++    err = av_frame_copy_props(output, input);
++    if (err < 0)
++        goto fail;
++
++    av_frame_free(&input);
++
++    av_log(ctx, AV_LOG_DEBUG, "Filter output: %s, %ux%u (%"PRId64").\n",
++           av_get_pix_fmt_name(output->format),
++           output->width, output->height, output->pts);
++
++    return ff_filter_frame(outlink, output);
++
++fail:
++    av_frame_free(&input);
++    av_frame_free(&output);
++    return err;
++}
++
++static int raisr_filter_config_input(AVFilterLink *inlink)
++{
++    AVHWFramesContext *input_frames;
++    int err;
++    FilterLink        *inl = ff_filter_link(inlink);
++
++    input_frames = (AVHWFramesContext*)inl->hw_frames_ctx->data;
++    if (input_frames->format != AV_PIX_FMT_OPENCL)
++        return AVERROR(EINVAL);
++
++    if (input_frames->sw_format != AV_PIX_FMT_NV12 &&
++        input_frames->sw_format != AV_PIX_FMT_YUV420P &&
++        input_frames->sw_format != AV_PIX_FMT_P010)
++        return AVERROR(EINVAL);
++
++    err = ff_opencl_filter_config_input(inlink);
++    if (err < 0)
++        return err;
++
++    return 0;
++}
++
++static int raisr_opencl_config_output(AVFilterLink *outlink)
++{
++    AVFilterContext *avctx = outlink->src;
++    AVFilterLink *inlink = avctx->inputs[0];
++    FilterLink   *inl = ff_filter_link(inlink);
++    RaisrOpenCLContext *ctx = avctx->priv;
++    AVHWFramesContext *input_frames;
++    const AVPixFmtDescriptor *desc;
++    int err;
++
++    err = raisr_opencl_init(avctx);
++    if (err < 0)
++        return err;
++
++    input_frames = (AVHWFramesContext*)inl->hw_frames_ctx->data;
++    ctx->sw_format = (enum AVPixelFormat)input_frames->sw_format;
++    desc = av_pix_fmt_desc_get(ctx->sw_format);
++    if (desc && desc->comp[0].depth != ctx->bits) {
++        av_log(ctx, AV_LOG_ERROR, "input pixel doesn't match model's bitdepth\n");
++        return AVERROR(EINVAL);
++    }
++
++    ctx->ocf.output_width = inlink->w * ctx->ratio;
++    ctx->ocf.output_height = inlink->h * ctx->ratio;
++    if (ctx->evenoutput == 1) {
++        ctx->ocf.output_width -= ctx->ocf.output_width % 2;
++        ctx->ocf.output_height -= ctx->ocf.output_height % 2;
++    }
++
++    err = ff_opencl_filter_config_output(outlink);
++    if (err < 0)
++        return err;
++
++    return 0;
++}
++
++static av_cold void raisr_opencl_uninit(AVFilterContext *avctx)
++{
++    RNLHandler_Deinit();
++    ff_opencl_filter_uninit(avctx);
++}
++
++#define OFFSET(x) offsetof(RaisrOpenCLContext, x)
++#define FLAGS (AV_OPT_FLAG_FILTERING_PARAM | AV_OPT_FLAG_VIDEO_PARAM)
++static const AVOption raisr_opencl_options[] = {
++    {"ratio", "ratio of the upscaling, between 1 and 2", OFFSET(ratio),
++	 AV_OPT_TYPE_FLOAT, {.dbl = DEFAULT_RATIO}, MIN_RATIO, MAX_RATIO, FLAGS},
++    {"bits", "bit depth", OFFSET(bits), AV_OPT_TYPE_INT, {.i64 = 8}, 8, 10, FLAGS},
++    {"range", "input color range", OFFSET(range), AV_OPT_TYPE_INT, {.i64 = VideoRange}, VideoRange, FullRange, FLAGS, "range"},
++        { "video", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = VideoRange  },   INT_MIN, INT_MAX, FLAGS, "range" },
++        { "full",  NULL, 0, AV_OPT_TYPE_CONST, { .i64 = FullRange  },    INT_MIN, INT_MAX, FLAGS, "range" },
++    {"filterfolder", "absolute filter folder path", OFFSET(filterfolder), AV_OPT_TYPE_STRING, {.str = "filters_2x/filters_lowres"}, 0, 0, FLAGS},
++    {"blending", "CT blending mode (1: Randomness, 2: CountOfBitsChanged)",
++      OFFSET(blending), AV_OPT_TYPE_INT, {.i64 = CountOfBitsChanged}, Randomness, CountOfBitsChanged, FLAGS, "blending"},
++        { "Randomness",         NULL, 0, AV_OPT_TYPE_CONST, { .i64 = Randomness  },            INT_MIN, INT_MAX, FLAGS, "blending" },
++        { "CountOfBitsChanged", NULL, 0, AV_OPT_TYPE_CONST, { .i64 = CountOfBitsChanged   },   INT_MIN, INT_MAX, FLAGS, "blending" },
++    {"passes", "passes to run (1: one pass, 2: two pass)", OFFSET(passes), AV_OPT_TYPE_INT, {.i64 = 1}, 1, 2, FLAGS},
++    {"mode", "mode for two pass (1: upscale in 1st pass, 2: upscale in 2nd pass)", OFFSET(mode), AV_OPT_TYPE_INT, {.i64 = 1}, 1, 2, FLAGS},
++    {"evenoutput", "make output size as even number (0: ignore, 1: subtract 1px if needed)", OFFSET(evenoutput), AV_OPT_TYPE_INT, {.i64 = 0}, 0, 1, FLAGS},
++    {NULL}
++};
++
++AVFILTER_DEFINE_CLASS(raisr_opencl);
++
++static const AVFilterPad raisr_opencl_inputs[] = {
++    {
++        .name         = "default",
++        .type         = AVMEDIA_TYPE_VIDEO,
++        .filter_frame = &raisr_opencl_filter_frame,
++        .config_props = &raisr_filter_config_input,
++    }
++};
++
++static const AVFilterPad raisr_opencl_outputs[] = {
++    {
++        .name         = "default",
++        .type         = AVMEDIA_TYPE_VIDEO,
++        .config_props = &raisr_opencl_config_output,
++    }
++};
++
++const AVFilter ff_vf_raisr_opencl = {
++    .name           = "raisr_opencl",
++    .description    = NULL_IF_CONFIG_SMALL("Raisr"),
++    .priv_size      = sizeof(RaisrOpenCLContext),
++    .priv_class     = &raisr_opencl_class,
++    .init           = &ff_opencl_filter_init,
++    .uninit         = &raisr_opencl_uninit,
++    FILTER_INPUTS(raisr_opencl_inputs),
++    FILTER_OUTPUTS(raisr_opencl_outputs),
++    FILTER_SINGLE_PIXFMT(AV_PIX_FMT_OPENCL),
++    .flags_internal = FF_FILTER_FLAG_HWFRAME_AWARE,
++};
+-- 
+2.34.1
+
