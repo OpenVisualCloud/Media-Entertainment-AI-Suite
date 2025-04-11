@@ -1,15 +1,23 @@
+## Copyright (C) 2025 Intel Corporation
+##
+## SPDX-License-Identifier: BSD-3-Clause
+
+
 # Default values for helm.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-# Set directory path of test video and output and models
+# Set directory path of test video and output both on host directory that application will process all videos in mp4 format in test_video_dir directory
+# and save the output with mp4 format in the output_dir directory
 test_video_dir: /home/spr-lxx/workspace/aime_cemp_mwc/demo_video/bbb/input/
 output_dir: /home/spr-lxx/workspace/output/
 # Set directory path which include IR file (.xml and .bin)
 model_dir: /home/spr-lxx/workspace/ivsr/ivsr_2024.05/SVP_Basic/dunet_2024.01/INT8-performance/
 
 # Filter Configuration
-# Set `selected` to true to select either ivsr or raisr for video processing.
+# One service only support select one filter from ivsr and raisr to process videos.
+# Select either ivsr or raisr for video processing by setting the 'selected' property to true.
+# Such as set `selected` of ivsr item to true and `selected` of raisr to false to select ivsr filter to do process videos.
 # Refer to the documentation of ivsr and raisr for configuration details.
 filter_parameters:
   ivsr:

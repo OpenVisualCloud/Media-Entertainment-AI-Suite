@@ -36,22 +36,26 @@ Modify the helm/templates/deployment.yaml file of the AI Suite to request the ne
 Ensure the above configuration is placed correctly under the container specification where GPU resources are needed.
 With these changes, the AI Suite should be configured to utilize an Intel GPU on your Kubernetes cluster
 
-### Installing Helm Charts
+### Installing Helm Charts to Start a AI Suite Service
 
-To install the application, use the Helm charts located in the [/helm](helm) directory. Before proceeding with the installation, ensure that you provide the necessary values for specific parameters in the `values.yaml` file. Below is an example of the settings in `values.yaml`. For detailed information on using ivsr and raisr parameters, please refer to their documentation.
+To install the Helm Charts to start AI Suite service to process videos via ffmpeg command with ivsr or raisr filter, use the Helm charts located in the [/helm](helm) directory. Before proceeding with the installation, ensure that you provide the necessary values for specific parameters in the `values.yaml` file. Below is an example of the settings in `values.yaml`. For detailed information on using ivsr and raisr parameters, please refer to their documentation.
 
 ```yaml
-# Set directory path of test video and output and models
+# Set directory path of test video and output both on host directory that application will process all videos in mp4 format in test_video_dir directory
+# and save the output with mp4 format in the output_dir directory
 test_video_dir: /home/spr-lxx/workspace/aime_cemp_mwc/demo_video/bbb/input/
 output_dir: /home/spr-lxx/workspace/output/
+# Set directory path which include IR file (.xml and .bin)
 model_dir: /home/spr-lxx/workspace/ivsr/ivsr_2024.05/SVP_Basic/dunet_2024.01/INT8-performance/
 
-# Configuration of Filters
-# To configure the filters for the AI suite service, users can select either ivsr or raisr for video processing by setting the `selected` property to true.
-
+# Filter Configuration
+# One service only support select one filter from ivsr and raisr to process videos.
+# Select either ivsr or raisr for video processing by setting the 'selected' property to true.
+# Such as set `selected` of ivsr item to true and `selected` of raisr to false to select ivsr filter to do process videos.
+# Refer to the documentation of ivsr and raisr for configuration details.
 filter_parameters:
   ivsr:
-    selected: true # true mean select ivsr sdk to do VSR or Video Process
+    selected: true
     configuration:
       format: rgb24
       model_name: dunet.xml
@@ -82,4 +86,14 @@ User can install the Chart using the following command after configuring the `va
 ```bash
 helm install ai-suite ./helm
 ```
-Subsequently, the Helm chart named `ai-suite` was deployed, and the `ai-suite-server-xxx` pod was created. This pod empolys ffmpeg to process videos located within the `test_video_dir`, generates outputs in the `output_dir`. The status of `ai-suite-server-xxx` pod will be displayed "Completed" after all videos been processed.
+Subsequently, the Helm chart named `ai-suite` was deployed, and the `ai-suite-server-xxx` pod was created that list pods via `kubectl get pods`. This pod empolys ffmpeg to process videos located within the `test_video_dir`, generates outputs in the `output_dir`. The status of `ai-suite-server-xxx` pod shows "Running", which means the service is processing the videos with specified filter via ffmpeg command.
+
+### Check Output Videos and Uninstall Helm Charts to Terminate the Service
+Users can determine whether the service is completed by checking the status of the `ai-suite-server-xxx` pod. If the status is completed, it means that the service is completed and all videos have been processed. And then can check output videos in the `output_dir` directory on host, the output files are named ivsr_output_xxx.mp4 or raisr_output_xxx.mp4.
+
+It needs to terminate the ai-suite service via uninstalling Helm Charts after the serive is completed.
+```bash
+helm uninstall ai-suite
+```
+
+ 
