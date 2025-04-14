@@ -1,0 +1,48 @@
+## Copyright (C) 2025 Intel Corporation
+##
+## SPDX-License-Identifier: BSD-3-Clause
+
+
+# Default values for helm.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Set directory path of test video and output both on host directory that application will process all videos in mp4 format in test_video_dir directory
+# and save the output with mp4 format in the output_dir directory
+test_video_dir: /home/spr-lxx/workspace/aime_cemp_mwc/demo_video/bbb/input/
+output_dir: /home/spr-lxx/workspace/output/
+# Set directory path which include IR file (.xml and .bin)
+model_dir: /home/spr-lxx/workspace/ivsr/ivsr_2024.05/SVP_Basic/dunet_2024.01/INT8-performance/
+
+# Filter Configuration
+# One service only support select one filter from ivsr and raisr to process videos.
+# Select either ivsr or raisr for video processing by setting the 'selected' property to true.
+# Such as set `selected` of ivsr item to true and `selected` of raisr to false to select ivsr filter to do process videos.
+# Refer to the documentation of ivsr and raisr for configuration details.
+filter_parameters:
+  ivsr:
+    selected: true
+    configuration:
+      format: rgb24
+      model_name: dunet.xml
+      nif: 1
+      model_type: 1
+      normalize_factor: 1.0
+      device: CPU
+
+  raisr:
+    selected: false
+    configuration:
+      threadcount: 20
+      ratio: 2
+      bits: 8
+      passes: 1
+      asm: avx512
+      filterfolder: filters_2x/filters_highres
+
+# Specify codec parameter, current supports libx264 and libx265 encoders
+codec_parameters:
+  encoder: libx264
+  bitrate: 5M
+  profile: main
+  pix_fmt: yuv420p
