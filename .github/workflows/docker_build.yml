@@ -1,0 +1,23 @@
+name: Docker Build
+
+on:
+  pull_request:
+    branches: [ "main", "dev" ]
+  push:
+    branches: [ "main", "dev" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  ivsr-image-build:
+    name: Build sdk Docker Image
+    uses: ./.github/workflows/build_docker_tpl.yml
+    with:
+      docker_file_path:  "Dockerfile"
+      docker_image_name: "sdk"
