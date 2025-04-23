@@ -1,6 +1,8 @@
 # Media & Entertainment AI Suite
 The main goal of developing AI Suites is to facilitate customer evaluation. The current Media Entertainment AI Suite include video super-resolution and smart video preprocessing. For video super-resolution, both iVSR and RAISR envoriment are supported. Users can choose models IVSR supported or RAISR to do video super-resolution.
+
 ## Installing
+
 ### Prerequisites
 - Linux based OS
 - [Docker](https://www.docker.com/)
@@ -9,6 +11,7 @@ The main goal of developing AI Suites is to facilitate customer evaluation. The 
 - Option: Intel GPU devices require [Intel GPU device plugin for Kubernetes](https://intel.github.io/intel-device-plugins-for-kubernetes/cmd/gpu_plugin/README.html)
 
 ### Building iVSR RAISR Image
+
 <br> just run the below command to build ivsr_raisr image
 `./build_ivsr_raisr_docker.sh` </br>
 then will get ivsr_raisr:latest image this image include both ivsr v24.12  and raisr v23.11.1 env.
@@ -81,19 +84,20 @@ codec_parameters:
   profile: main
   pix_fmt: yuv420p
 ```
+
 User can install the Chart using the following command after configuring the `values.yaml` file:
 
 ```bash
 helm install ai-suite ./helm
 ```
+
 Subsequently, the Helm chart named `ai-suite` was deployed, and the `ai-suite-server-xxx` pod was created that list pods via `kubectl get pods`. This pod empolys ffmpeg to process videos located within the `test_video_dir`, generates outputs in the `output_dir`. The status of `ai-suite-server-xxx` pod shows "Running", which means the service is processing the videos with specified filter via ffmpeg command.
 
 ### Check Output Videos and Uninstall Helm Charts to Terminate the Service
 Users can determine whether the service is completed by checking the status of the `ai-suite-server-xxx` pod. If the status is completed, it means that the service is completed and all videos have been processed. And then can check output videos in the `output_dir` directory on host, the output files are named ivsr_output_xxx.mp4 or raisr_output_xxx.mp4.
 
 It needs to terminate the ai-suite service via uninstalling Helm Charts after the serive is completed.
+
 ```bash
 helm uninstall ai-suite
 ```
-
- 

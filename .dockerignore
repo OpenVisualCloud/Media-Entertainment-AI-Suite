@@ -1,0 +1,15 @@
+.dockerignore
+.git/
+.gitignore
+.github/
+.vscode/
+.cache/
+
+CODEOWNERS
+LICENSE
+README.md
+doc
+
+*.log
+*.patch
+*.diff
