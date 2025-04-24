@@ -47,3 +47,4 @@ jobs:
           VALIDATE_MARKDOWN: true
           VALIDATE_PYTHON_BLACK: true
           VALIDATE_YAML_PRETTIER: true
+          VALIDATE_DOCKERFILE_HADOLINT: true
