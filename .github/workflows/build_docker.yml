@@ -20,4 +20,4 @@ jobs:
     uses: ./.github/workflows/build_docker_tpl.yml
     with:
       docker_file_path:  "Dockerfile"
-      docker_image_name: "sdk"
+      docker_image_name: "ivsr_raisr"
