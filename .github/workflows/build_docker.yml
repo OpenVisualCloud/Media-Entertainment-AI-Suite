@@ -18,6 +18,9 @@ jobs:
   ivsr-image-build:
     name: Build sdk Docker Image
     uses: ./.github/workflows/build_docker_tpl.yml
+    permissions:
+      contents: read
+      security-events: write
     with:
       docker_file_path:  "Dockerfile"
       docker_image_name: "ivsr_raisr"

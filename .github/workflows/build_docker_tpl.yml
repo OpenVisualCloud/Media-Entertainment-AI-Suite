@@ -90,18 +90,20 @@ jobs:
           dockerfile: "${{ env.DOCKER_FILE_PATH }}"
           config: .github/configs/hadolint.yaml
           format: sarif
-          output-file:  "hadolint-${{ env.CONCURRENCY_GROUP }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+          output-file:  "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
           failure-threshold: error
           verbose: true
 
       - name: "${{ inputs.docker_image_name }}: Scanner Hadolint upload results to Security tab"
         uses: github/codeql-action/upload-sarif@2e230e8fe0ad3a14a340ad0815ddb96d599d2aff # v3.25.8
+        continue-on-error: true
         with:
-          sarif_file: "hadolint-${{ env.CONCURRENCY_GROUP }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+          sarif_file: "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
 
       - name: "${{ inputs.docker_image_name }}: Login to Docker Container Registry"
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         if: ${{ env.DOCKER_REGISTRY_LOGIN == 'true' }}
+        continue-on-error: true
         with:
           registry: "${{ env.DOCKER_REGISTRY }}"
           username: "${{ secrets.docker_registry_login   || env.GITHUB_ACTOR }}"
@@ -125,12 +127,12 @@ jobs:
         with:
           image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
           format: "sarif"
-          output: "${{ env.CONCURRENCY_GROUP }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+          output: "${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload results to Security tab"
         uses: github/codeql-action/upload-sarif@2e230e8fe0ad3a14a340ad0815ddb96d599d2aff # v3.25.8
         with:
-          sarif_file: "${{ env.CONCURRENCY_GROUP }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+          sarif_file: "${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
 
       - name: "${{ inputs.docker_image_name }}: Scanner Hadolint Dockerfile scan tty output"
         if: always()
