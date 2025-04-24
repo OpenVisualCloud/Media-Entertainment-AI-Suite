@@ -159,43 +159,41 @@ ENV OpenCV_DIR=${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install/lib/cmake/ope
 ARG IVSR_OV_DIR=${IVSR_DIR}/ivsr_ov/based_on_openvino_${OV_VERSION}/openvino
 ARG CUSTOM_OV_INSTALL_DIR=${IVSR_OV_DIR}/install
 ARG IVSR_SDK_DIR=${IVSR_DIR}/ivsr_sdk/
-
-RUN apt-get update && \
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-            build-essential \
-            ca-certificates \
-            curl \
-            cmake \
-            cython3 \
-            flex \
-            bison \
-            gcc \
-            g++ \
-            git \
-            libdrm-dev \
-            libudev-dev \
-            libtool \
-            libusb-1.0-0-dev \
-            make \
-            patch \
-            pkg-config \
-            xz-utils \
-            ocl-icd-opencl-dev \
-            opencl-headers && \
-    rm -rf /var/lib/apt/lists/*
-
 ARG PYTHON=python3.10
 
-RUN apt-get update && apt-get install -y --no-install-recommends --fix-missing \
-    ${PYTHON} lib${PYTHON}-dev python3-pip && \
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      build-essential \
+      ca-certificates \
+      curl \
+      cmake \
+      cython3 \
+      flex \
+      bison \
+      gcc \
+      g++ \
+      git \
+      libdrm-dev \
+      libudev-dev \
+      libtool \
+      libusb-1.0-0-dev \
+      make \
+      patch \
+      pkg-config \
+      xz-utils \
+      ocl-icd-opencl-dev \
+      opencl-headers && \
+    apt-get install -y --no-install-recommends --fix-missing \
+      ${PYTHON} \
+      lib${PYTHON}-dev \
+      python3-pip && \
     apt-get clean && \
-    rm -rf  /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/*
 
 RUN pip --no-cache-dir install --upgrade \
-    pip \
-    setuptools
-
-RUN ln -sf $(which ${PYTHON}) /usr/local/bin/python && \
+      pip \
+      setuptools && \
+    ln -sf $(which ${PYTHON}) /usr/local/bin/python && \
     ln -sf $(which ${PYTHON}) /usr/local/bin/python3 && \
     ln -sf $(which ${PYTHON}) /usr/bin/python && \
     ln -sf $(which ${PYTHON}) /usr/bin/python3
@@ -205,49 +203,48 @@ ARG OV_BRANCH=${OV_VERSION}.0
 WORKDIR ${IVSR_OV_DIR}
 
 RUN git config --global user.email "noname@example.com" && \
-  git config --global user.name "no name"
-
-RUN git clone ${OV_REPO} ${IVSR_OV_DIR} && \
+    git config --global user.name "no name" && \
+    git clone ${OV_REPO} ${IVSR_OV_DIR} && \
     git checkout ${OV_BRANCH} && \
     git submodule update --init --recursive
 
 RUN if [ "$ENABLE_OV_PATCH" = "true" ] && [ "$OV_VERSION" = "2022.3" ]; then \
         { set -e; \
-            for patch_file in $(find ../patches -iname "*.patch" | sort -n); do \
+          for patch_file in $(find ../patches -iname "*.patch" | sort -n); do \
             echo "Applying: ${patch_file}"; \
             git am --whitespace=fix ${patch_file}; \
-            done; }; \
+          done; }; \
     fi
 
 WORKDIR ${IVSR_OV_DIR}/build
-RUN  cmake \
-    -DCMAKE_INSTALL_PREFIX=${PWD}/../install \
-    -DENABLE_INTEL_CPU=ON \
-    -DENABLE_CLDNN=ON \
-    -DENABLE_INTEL_GPU=ON \
-    -DENABLE_ONEDNN_FOR_GPU=OFF \
-    -DENABLE_INTEL_GNA=OFF \
-    -DENABLE_INTEL_MYRIAD_COMMON=OFF \
-    -DENABLE_INTEL_MYRIAD=OFF \
-    -DENABLE_PYTHON=ON \
-    -DENABLE_OPENCV=ON \
-    -DENABLE_SAMPLES=ON \
-    -DENABLE_CPPLINT=OFF \
-    -DTREAT_WARNING_AS_ERROR=OFF \
-    -DENABLE_TESTS=OFF \
-    -DENABLE_GAPI_TESTS=OFF \
-    -DENABLE_BEH_TESTS=OFF \
-    -DENABLE_FUNCTIONAL_TESTS=OFF \
-    -DENABLE_OV_CORE_UNIT_TESTS=OFF \
-    -DENABLE_OV_CORE_BACKEND_UNIT_TESTS=OFF \
-    -DENABLE_DEBUG_CAPS=ON \
-    -DENABLE_GPU_DEBUG_CAPS=ON \
-    -DENABLE_CPU_DEBUG_CAPS=ON \
-    -DCMAKE_BUILD_TYPE=Release \
-    .. && \
-  make -j $(nproc --all) && \
-  make install && \
-  bash ${PWD}/../install/setupvars.sh
+RUN cmake \
+      -DCMAKE_INSTALL_PREFIX=${PWD}/../install \
+      -DENABLE_INTEL_CPU=ON \
+      -DENABLE_CLDNN=ON \
+      -DENABLE_INTEL_GPU=ON \
+      -DENABLE_ONEDNN_FOR_GPU=OFF \
+      -DENABLE_INTEL_GNA=OFF \
+      -DENABLE_INTEL_MYRIAD_COMMON=OFF \
+      -DENABLE_INTEL_MYRIAD=OFF \
+      -DENABLE_PYTHON=ON \
+      -DENABLE_OPENCV=ON \
+      -DENABLE_SAMPLES=ON \
+      -DENABLE_CPPLINT=OFF \
+      -DTREAT_WARNING_AS_ERROR=OFF \
+      -DENABLE_TESTS=OFF \
+      -DENABLE_GAPI_TESTS=OFF \
+      -DENABLE_BEH_TESTS=OFF \
+      -DENABLE_FUNCTIONAL_TESTS=OFF \
+      -DENABLE_OV_CORE_UNIT_TESTS=OFF \
+      -DENABLE_OV_CORE_BACKEND_UNIT_TESTS=OFF \
+      -DENABLE_DEBUG_CAPS=ON \
+      -DENABLE_GPU_DEBUG_CAPS=ON \
+      -DENABLE_CPU_DEBUG_CAPS=ON \
+      -DCMAKE_BUILD_TYPE=Release \
+      .. && \
+    make -j $(nproc) && \
+    make install && \
+    bash ${PWD}/../install/setupvars.sh
 
 ARG CUSTOM_IE_DIR=${CUSTOM_OV_INSTALL_DIR}/runtime
 ARG CUSTOM_IE_LIBDIR=${CUSTOM_IE_DIR}/lib/intel64
@@ -263,7 +260,7 @@ WORKDIR ${IVSR_SDK_DIR}/build
 RUN cmake .. \
       -DENABLE_LOG=OFF -DENABLE_PERF=OFF -DENABLE_THREADPROCESS=ON \
       -DCMAKE_BUILD_TYPE=Release && \
-    make -j $(nproc --all) && \
+    make -j $(nproc) && \
     make install && \
     echo "Building vsr sdk finished."
 
@@ -291,25 +288,36 @@ RUN  ./build.sh -DENABLE_RAISR_OPENCL=ON
 
 #build ffmpeg with iVSR SDK backend and raisr
 RUN apt-get update && \
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    ca-certificates tar g++ wget pkg-config nasm yasm libglib2.0-dev flex bison gobject-introspection libgirepository1.0-dev python3-dev \
-    libx11-dev \
-    libxv-dev \
-    libxt-dev \
-    libasound2-dev \
-    libpango1.0-dev \
-    libtheora-dev \
-    libvisual-0.4-dev \
-    libgl1-mesa-dev \
-    libcurl4-gnutls-dev \
-    librtmp-dev \
-    mjpegtools \
-    libx264-dev \
-    libx265-dev \
-    libde265-dev \
-    libva-dev \
-    && \
-  rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends \
+      ca-certificates \
+      tar \
+      g++ \
+      wget \
+      pkg-config \
+      nasm \
+      yasm \
+      libglib2.0-dev \
+      flex \
+      bison \
+      gobject-introspection \
+      libgirepository1.0-dev \
+      python3-dev \
+      libx11-dev \
+      libxv-dev \
+      libxt-dev \
+      libasound2-dev \
+      libpango1.0-dev \
+      libtheora-dev \
+      libvisual-0.4-dev \
+      libgl1-mesa-dev \
+      libcurl4-gnutls-dev \
+      librtmp-dev \
+      mjpegtools \
+      libx264-dev \
+      libx265-dev \
+      libde265-dev \
+      libva-dev && \
+    rm -rf /var/lib/apt/lists/*
 ENV LD_LIBRARY_PATH=${IVSR_SDK_DIR}/lib:/usr/local/lib:$LD_LIBRARY_PATH
 ENV C_INCLUDE_PATH="/opt/intel/oneapi/ipp/latest/include/ipp"
 
@@ -353,7 +361,7 @@ RUN if [ -f "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ]; then \
     --enable-opencl \
     --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
     --enable-cross-compile && \
-    make -j $(nproc --all) && \
+    make -j $(nproc) && \
     make install
 
 WORKDIR ${WORKSPACE}

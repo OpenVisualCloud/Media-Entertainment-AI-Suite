@@ -28,16 +28,19 @@ jobs:
       contents: read
       security-events: write
     with:
-      docker_registry: "${{ env.DOCKER_REGISTRY }}"
-      docker_registry_prefix: "${{ env.DOCKER_REGISTRY_PREFIX }}"
+      docker_registry: "ghcr.io"
+      docker_registry_prefix: "openvisualcloud/media-entertainment-ai-suite"
       docker_file_path:  "Dockerfile"
-      docker_image_name: "${{ env.DOCKER_IMAGE_NAME }}"
-      docker_image_tag: "${{ env.DOCKER_IMAGE_TAG }}"
+      docker_image_name: "ivsr_raisr"
+      docker_image_tag: "${{ github.sha }}"
+      docker_registry_login: true
+      docker_registry_push: true
 
   ivsr-container-test:
     runs-on: ubuntu-22.04
+    needs: ivsr-image-build
     container:
-      image: "${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_REGISTRY_PREFIX }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
+      image: "ghcr.io/openvisualcloud/media-entertainment-ai-suite/ivsr_raisr:${{ github.sha }}"
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.github_token }}
@@ -50,4 +53,3 @@ jobs:
 
       - name: Run ffmpeg raisr_opencl plugin help
         run: ./ffmpeg/ffmpeg -help filter=raisr_opencl
-
