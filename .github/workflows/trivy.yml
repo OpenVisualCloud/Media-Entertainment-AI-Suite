@@ -47,12 +47,12 @@ jobs:
 
       - name: "Trivy: Upload fs scan results to GitHub Security tab"
         uses: github/codeql-action/upload-sarif@b611370bb5703a7efb587f9d136a52ea24c5c38c # v3.25.11
+        continue-on-error: true
         with:
           sarif_file: "trivy-fs-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
 
       - name: "Trivy: Upload scan results as artifacts (out=sarif)"
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # V4.4.3
-        if: always()
         with:
           name: "trivy-config-scan-results-sarif-${{ github.event.pull_request.number || github.sha }}"
           path: "trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
@@ -93,14 +93,13 @@ jobs:
           output: "trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.txt"
 
       - name: "Trivy: Upload scan results to GitHub Security tab"
-        if: always()
+        continue-on-error: true
         uses: github/codeql-action/upload-sarif@b611370bb5703a7efb587f9d136a52ea24c5c38c # v3.25.11
         with:
           sarif_file: "trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
 
       - name: "Trivy: Upload scan results as artifacts (out=sarif)"
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # V4.4.3
-        if: always()
         with:
           name: "trivy-config-scan-results-sarif-${{ github.event.pull_request.number || github.sha }}"
           path: "trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
@@ -108,7 +107,6 @@ jobs:
 
       - name: "Trivy: Upload scan results as artifacts (out=table)"
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # V4.4.3
-        if: always()
         with:
           name: "trivy-config-scan-results-table-${{ github.event.pull_request.number || github.sha }}"
           path: "trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.txt"
