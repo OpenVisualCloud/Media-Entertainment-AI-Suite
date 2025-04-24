@@ -1,3 +1,4 @@
+
 # SPDX-License-Identifier: BSD 3-Clause License
 #
 # Copyright (c) 2025, Intel Corporation
@@ -31,42 +32,49 @@
 ARG IMAGE=ubuntu:22.04
 FROM $IMAGE AS base
 
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
+
 RUN apt-get update && \
-  DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-    curl wget ca-certificates gpg-agent software-properties-common && \
-  rm -rf /var/lib/apt/lists/*
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-FROM base as build
-LABEL vendor="Intel Corporation"
-
-ARG ENABLE_OV_PATCH
-ARG OV_VERSION
-# openvino
-RUN apt-get update && \
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --fix-missing \
-            apt-utils \
-            ca-certificates \
-            curl \
-            cmake \
-            cython3 \
-            flex \
-            bison \
-            gcc \
-            g++ \
-            git \
-            make \
-            patch \
-            pkg-config \
-            wget && \
+    apt-get install -y --no-install-recommends \
+      curl \
+      ca-certificates \
+      gpg-agent \
+      software-properties-common && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN no_proxy=$no_proxy wget -qO - https://repositories.intel.com/graphics/intel-graphics.key | \
-    gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg
+FROM base AS build
+LABEL vendor="Intel Corporation"
+
+SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
+ARG ENABLE_OV_PATCH="false"
+ARG OV_VERSION="2024.5"
+
+# openvino
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends --fix-missing \
+      apt-utils \
+      ca-certificates \
+      curl \
+      cmake \
+      cython3 \
+      flex \
+      bison \
+      gcc \
+      g++ \
+      git \
+      make \
+      patch \
+      pkg-config && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN curl -Lf "https://repositories.intel.com/graphics/intel-graphics.key" -o "intel-graphics.key" && \
+    gpg --dearmor --output "/usr/share/keyrings/intel-graphics.gpg" "intel-graphics.key"
 RUN echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu jammy flex' | \
-    tee  /etc/apt/sources.list.d/intel.gpu.jammy.list
+    tee "/etc/apt/sources.list.d/intel.gpu.jammy.list"
 
 # clone ivsr repo
 ARG WORKSPACE=/workspace
@@ -76,19 +84,20 @@ ARG IVSR_VERSION=v25.03
 
 WORKDIR ${IVSR_DIR}
 RUN git clone ${IVSR_REPO} ${IVSR_DIR} && \
-  git checkout ${IVSR_VERSION}
+    git checkout ${IVSR_VERSION}
 
 #install opencv
 ARG OPENCV_REPO=https://github.com/opencv/opencv/archive/4.5.3-openvino-2021.4.2.tar.gz
 WORKDIR ${WORKSPACE}
-RUN wget -qO - ${OPENCV_REPO} | tar xz
+RUN curl -Lf "${OPENCV_REPO}" -o "4.5.3-openvino-2021.4.2.tar.gz" && \
+    tar xzf "4.5.3-openvino-2021.4.2.tar.gz" && \
+    rm -f "4.5.3-openvino-2021.4.2.tar.gz"
 
-WORKDIR ${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2
-RUN mkdir build && mkdir install
-WORKDIR ${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/build
-RUN cmake \
+WORKDIR "${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/build"
+RUN mkdir -p "${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install" && \
+    cmake \
       -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_INSTALL_PREFIX=${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install \
+      -DCMAKE_INSTALL_PREFIX="${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install" \
       -DCMAKE_INSTALL_LIBDIR=lib \
       -DOPENCV_GENERATE_PKGCONFIG=ON \
       -DBUILD_DOCS=OFF \
@@ -145,7 +154,7 @@ RUN if [ "$OV_VERSION" = "2024.5" ]; then \
       curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/libigdgmm12_22.4.1_amd64.deb; \
       dpkg -i ./*.deb && rm -Rf /tmp/gpu_deps; \
     fi
-ENV LD_LIBRARY_PATH=${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install/lib
 ENV OpenCV_DIR=${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install/lib/cmake/opencv4
 ARG IVSR_OV_DIR=${IVSR_DIR}/ivsr_ov/based_on_openvino_${OV_VERSION}/openvino
 ARG CUSTOM_OV_INSTALL_DIR=${IVSR_OV_DIR}/install
@@ -175,7 +184,7 @@ RUN apt-get update && \
             opencl-headers && \
     rm -rf /var/lib/apt/lists/*
 
-ARG PYTHON
+ARG PYTHON=python3.10
 
 RUN apt-get update && apt-get install -y --no-install-recommends --fix-missing \
     ${PYTHON} lib${PYTHON}-dev python3-pip && \
@@ -261,11 +270,11 @@ RUN cmake .. \
 # build raisr
 # install 3rd-party libraries required by raisr and raisr
 WORKDIR ${WORKSPACE}
-RUN wget https://registrationcenter-download.intel.com/akdlm/IRC_NAS/7e07b203-af56-4b52-b69d-97680826a8df/l_ipp_oneapi_p_2021.12.1.16_offline.sh && \
-  chmod +x ./l_ipp_oneapi_p_2021.12.1.16_offline.sh && \
-  ./l_ipp_oneapi_p_2021.12.1.16_offline.sh -a -s --eula accept && \
-  source  /opt/intel/oneapi/ipp/latest/env/vars.sh && \
-  rm ./l_ipp_oneapi_p_2021.12.1.16_offline.sh
+RUN curl -Lf "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/7e07b203-af56-4b52-b69d-97680826a8df/l_ipp_oneapi_p_2021.12.1.16_offline.sh" -o "l_ipp_oneapi_p_2021.12.1.16_offline.sh" && \
+    chmod +x ./l_ipp_oneapi_p_2021.12.1.16_offline.sh && \
+    ./l_ipp_oneapi_p_2021.12.1.16_offline.sh -a -s --eula accept && \
+    source  /opt/intel/oneapi/ipp/latest/env/vars.sh && \
+    rm ./l_ipp_oneapi_p_2021.12.1.16_offline.sh
 
 ENV LD_LIBRARY_PATH=/opt/intel/oneapi/ipp/2021.12/lib:${LD_LIBRARY_PATH}
 ENV LIBRARY_PATH=/opt/intel/oneapi/ipp/2021.12/lib
@@ -312,7 +321,7 @@ WORKDIR ${FFMPEG_DIR}
 RUN git clone ${FFMPEG_REPO} ${FFMPEG_DIR} && \
     git checkout ${FFMPEG_VERSION}
 
-Run cp ${IVSR_DIR}/ivsr_ffmpeg_plugin/patches/*.patch ${FFMPEG_DIR}/
+RUN cp ${IVSR_DIR}/ivsr_ffmpeg_plugin/patches/*.patch ${FFMPEG_DIR}/
 # apply patches of ivsr ffmpeg
 RUN { set -e; \
   for patch_file in $(find -iname "*.patch" | sort -n); do \
