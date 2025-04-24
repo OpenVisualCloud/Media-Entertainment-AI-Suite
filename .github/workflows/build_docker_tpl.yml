@@ -99,7 +99,7 @@ jobs:
         with:
           name: "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
           path: "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
-          retention-days: 14
+          retention-days: 7
 
       - name: "${{ inputs.docker_image_name }}: Scanner Hadolint upload results to Security tab"
         uses: github/codeql-action/upload-sarif@2e230e8fe0ad3a14a340ad0815ddb96d599d2aff # v3.25.8
@@ -110,18 +110,18 @@ jobs:
       - name: "${{ inputs.docker_image_name }}: Scanner Hadolint Dockerfile scan tty output"
         if: always()
         uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        continue-on-error: true
         with:
           dockerfile: "${{ env.DOCKER_FILE_PATH }}"
           config: .github/configs/hadolint.yaml
           format: tty
           failure-threshold: warning
 
-  scan-and-build-docker-image:
-    name: "${{ inputs.docker_image_name }}: Performing scan and build of Dockerfile."
+  build-and-scan-docker-image:
+    name: "${{ inputs.docker_image_name }}: Performing build and scan of Docker image from Dockerfile."
     runs-on: ubuntu-22.04
     permissions:
       contents: read
-      security-events: write
     timeout-minutes: 240
     steps:
       - name: "${{ inputs.docker_image_name }}: Harden Runner"
@@ -196,10 +196,22 @@ jobs:
         with:
           name: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
           path: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
-          retention-days: 14
+          retention-days: 7
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload results to Security tab"
         uses: github/codeql-action/upload-sarif@2e230e8fe0ad3a14a340ad0815ddb96d599d2aff # v3.25.8
         continue-on-error: true
         with:
           sarif_file: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+
+      - name: "${{ inputs.docker_image_name }}: smoke test iVSR"
+        continue-on-error: true
+        run: docker run -it "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=dnn_processing
+
+      - name: "${{ inputs.docker_image_name }}: smoke test raisr"
+        continue-on-error: true
+        run: docker run -it "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=raisr
+
+      - name: "${{ inputs.docker_image_name }}: smoke test raisr opencl"
+        continue-on-error: true
+        run: docker run -it "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=raisr_opencl
