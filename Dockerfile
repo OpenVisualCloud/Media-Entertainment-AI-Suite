@@ -216,9 +216,11 @@ RUN if [ "$ENABLE_OV_PATCH" = "true" ] && [ "$OV_VERSION" = "2022.3" ]; then \
           done; }; \
     fi
 
-WORKDIR ${IVSR_OV_DIR}/build
-RUN cmake \
-      -DCMAKE_INSTALL_PREFIX=${PWD}/../install \
+WORKDIR ${IVSR_DIR}/ivsr_ov/based_on_openvino_${OV_VERSION}
+RUN mkdir -p openvino/build && \
+    cd openvino/build && \
+    cmake \
+      -DCMAKE_INSTALL_PREFIX="${PWD}/../install" \
       -DENABLE_INTEL_CPU=ON \
       -DENABLE_CLDNN=ON \
       -DENABLE_INTEL_GPU=ON \
@@ -244,7 +246,14 @@ RUN cmake \
       .. && \
     make -j $(nproc) && \
     make install && \
-    bash ${PWD}/../install/setupvars.sh
+    bash "${PWD}/../install/setupvars.sh" && \
+    install ${IVSR_OV_DIR}/install/runtime/3rdparty/tbb/lib/* /usr/local/lib && \
+    install ${IVSR_OV_DIR}/install/runtime/lib/intel64/* /usr/local/lib && \
+    install /workspace/opencv-4.5.3-openvino-2021.4.2/install/lib/* /usr/local/lib && \
+    install /workspace/opencv-4.5.3-openvino-2021.4.2/install/bin/* /usr/local/bin && \
+    mv "${IVSR_OV_DIR}/install" "/workspace/ivsr_ov-openvino-${OV_VERSION}" && \
+    cd ../.. && \
+    rm -rf "${IVSR_OV_DIR}" || true
 
 ARG CUSTOM_IE_DIR=${CUSTOM_OV_INSTALL_DIR}/runtime
 ARG CUSTOM_IE_LIBDIR=${CUSTOM_IE_DIR}/lib/intel64
@@ -280,9 +289,10 @@ ENV CMAKE_PREFIX_PATH=/opt/intel/oneapi/ipp/2021.12/lib/cmake/ipp
 ARG RAISR_REPO=https://github.com/OpenVisualCloud/Video-Super-Resolution-Library.git
 ARG RAISR_BRANCH=v23.11.1
 ARG RAISR_DIR=${WORKSPACE}/raisr
+
 WORKDIR ${RAISR_DIR}
 RUN git clone ${RAISR_REPO} ${RAISR_DIR} && \
-  git checkout ${RAISR_BRANCH}
+    git checkout ${RAISR_BRANCH}
 
 RUN  ./build.sh -DENABLE_RAISR_OPENCL=ON
 
