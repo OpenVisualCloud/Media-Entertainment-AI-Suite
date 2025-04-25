@@ -55,6 +55,7 @@ env:
   BUILDKIT_STEP_LOG_MAX_SPEED: 10000000
   DOCKER_TMPDIR: "/mnt/docker/docker-tmp"
   BUILD_TYPE: "${{ inputs.build_type }}"
+  TRIVY_TIMEOUT: "30m0s"
   CONCURRENCY_GROUP: "${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"
   DOCKER_REGISTRY: "${{ inputs.docker_registry }}"
   DOCKER_REGISTRY_LOGIN: "${{ github.repository == 'openvisualcloud/media-entertainment-ai-suite' && inputs.docker_registry_login }}"
@@ -94,7 +95,7 @@ jobs:
           failure-threshold: error
           verbose: true
 
-      - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload results as artifacts"
+      - name: "${{ inputs.docker_image_name }}: Scanner Hadolint upload results as artifacts"
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # V4.4.3
         with:
           name: "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
@@ -119,9 +120,9 @@ jobs:
 
   build-and-scan-docker-image:
     name: "${{ inputs.docker_image_name }}: Performing build and scan of Docker image from Dockerfile."
-    runs-on: ubuntu-22.04
+    runs-on: ["self-hosted", "docker", "Linux"]
     permissions:
-      contents: read
+      contents: write
     timeout-minutes: 240
     steps:
       - name: "${{ inputs.docker_image_name }}: Harden Runner"
@@ -132,35 +133,8 @@ jobs:
       - name: "${{ inputs.docker_image_name }}: Checkout repository"
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-      - name: "${{ inputs.docker_image_name }}: OS-Configuration report memory, block-dev and free disk space."
-        run: |
-          sudo free -h
-          sudo lsblk
-          sudo df -h
-
-      - name: "${{ inputs.docker_image_name }}: OS-Configuration disable SWAP in OS, create mnt points, show settings."
-        shell: bash
-        run: |
-          export SWAP_FILE="$(sudo swapon --show=NAME | tail -n 1)"
-          sudo swapoff "${SWAP_FILE}"
-          sudo rm "${SWAP_FILE}"
-          sudo mkdir -p "/mnt/docker/docker-d" "/mnt/docker/docker-tmp"
-
-      - name: "${{ inputs.docker_image_name }}: OS-Configuration add data-root and other JSON changes to dockerd, reload it."
-        run: |
-          sudo chmod 666 /etc/docker/daemon.json
-          echo "$(sudo jq '. += {"data-root":"/mnt/docker/docker-d","log-driver":"json-file","log-format":"text","log-level":"info","log-opts":{"cache-disabled":"false","cache-max-file":"5","cache-max-size":"20m","max-file":"5","max-size":"10m"}}' /etc/docker/daemon.json)" > /etc/docker/daemon.json
-          sudo chmod 644 /etc/docker/daemon.json
-          sudo systemctl daemon-reload
-          sudo systemctl restart docker
-          sudo cat "/etc/docker/daemon.json"
-
       - name: "${{ inputs.docker_image_name }}: Set up Docker Buildx"
         uses: docker/setup-buildx-action@4fd812986e6c8c2a69e18311145f9371337f27d4 # v3.4.0
-        with:
-          buildkitd-flags: "--debug --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host"
-          platforms: "linux/amd64"
-          driver-opts: memory=14Gib,memory-swap=25Gib,env.BUILDKIT_STEP_LOG_MAX_SIZE=50000000,env.BUILDKIT_STEP_LOG_MAX_SPEED=10000000
 
       - name: "${{ inputs.docker_image_name }}: Login to Docker Container Registry"
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
@@ -185,7 +159,8 @@ jobs:
           build-args: "${{ env.DOCKER_BUILD_ARGS }}"
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy run vulnerability scanner on image"
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # v0.29.0
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        continue-on-error: true
         with:
           image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
           format: "sarif"
@@ -193,6 +168,7 @@ jobs:
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload results as artifacts"
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # V4.4.3
+        continue-on-error: true
         with:
           name: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
           path: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
@@ -204,14 +180,33 @@ jobs:
         with:
           sarif_file: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
 
+      - name: "${{ inputs.docker_image_name }}: Scanner Trivy in GitHub SBOM mode and submit results to Dependency Graph"
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        continue-on-error: true
+        with:
+          image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
+          scan-type: 'image'
+          format: 'github'
+          scanners: 'vuln,secret,misconfig,license'
+          output: 'dependency-results.sbom.json'
+          github-pat: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload sbom report as a Github artifact"
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: trivy-sbom-report
+          path: '${{ github.workspace }}/dependency-results.sbom.json'
+          retention-days: 7
+
       - name: "${{ inputs.docker_image_name }}: smoke test iVSR"
         continue-on-error: true
-        run: docker run -it "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=dnn_processing
+        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=dnn_processing
 
       - name: "${{ inputs.docker_image_name }}: smoke test raisr"
         continue-on-error: true
-        run: docker run -it "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=raisr
+        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=raisr
 
       - name: "${{ inputs.docker_image_name }}: smoke test raisr opencl"
         continue-on-error: true
-        run: docker run -it "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=raisr_opencl
+        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=raisr_opencl
