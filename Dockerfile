@@ -375,4 +375,14 @@ RUN if [ -f "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ]; then \
     make install
 
 WORKDIR ${WORKSPACE}
+
+# Create one non-root user and group
+RUN groupadd -r myuser && useradd -r -g myuser myuser
+
+# Change the owner of WORSPACE to myuser
+RUN chown -R myuser:myuser ${WORKSPACE}
+
+# Switch to myuser
+USER myuser
+
 CMD ["/bin/bash"]
