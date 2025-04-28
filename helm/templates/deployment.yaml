@@ -22,6 +22,13 @@ spec:
         - name: ai-suite-server
           image: ivsr_raisr:latest
           imagePullPolicy: IfNotPresent
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            runAsUser: 1000 # non-root user UID
+            runAsGroup: 3000 #
+            capabilities:
+              drop: ["ALL"]
           #TBD - figure out some basic resource requests
           #resources:
           #  limits:
@@ -29,6 +36,8 @@ spec:
           #  requests:
           #    gpu.intel.com/i915: 1
           volumeMounts:
+            - name: tmp-volume
+              mountPath: /tmp
             - name: test-video-dir
               mountPath: /workspace/test_video
             - name: test-output-dir
@@ -84,6 +93,8 @@ spec:
               echo $video_name;
             done;
       volumes:
+        - name: tmp-volume
+          emptyDir: {}
         - name: timezone
           hostPath:
             path: /etc/localtime
