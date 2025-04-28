@@ -101,3 +101,7 @@ It needs to terminate the ai-suite service via uninstalling Helm Charts after th
 ```bash
 helm uninstall ai-suite
 ```
+## Note
+ 
+ This project is under development.
+ All source code and features on the main branch are for the purpose of testing or evaluation and not production ready.
