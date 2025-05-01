@@ -1,5 +1,26 @@
 # Media & Entertainment AI Suite
-The main goal of developing AI Suites is to facilitate customer evaluation. The current Media Entertainment AI Suite include video super-resolution and smart video preprocessing. For video super-resolution, both iVSR and RAISR envoriment are supported. Users can choose models IVSR supported or RAISR to do video super-resolution.
+The Media and Entertainment AI Suite is a cloud-native suite of docker containers, reference pipelines, libraries and pre-trained models that are designed to enhance video quality, improve user experience and lower costs for video service providers, such as broadcasters, video streamers, and social media service providers. These suites leverage Intel's AI libraries and frameworks, such as the Enterprise AI Framework and OpenVINO™, to deliver high-value media enhancement use cases.
+Key workloads supported include:
+- Video Super Resolution (VSR): Supports real-time or batch up-scaling of content from older pre-HD formats to HD and 4K, including support for 8-bit and 10-bit content.  VSR is available through a range of different up-scaling models, providing a trade-off between video quality and run-time performance.  Provides 
+- Video Bit Rate Optimization (SVP): Reduces video bit rate without compromising video quality, and is compatible with standard CODECs such as AVC, HEVC and AV1.  Helps to reduce costs through lower transmission and storage requirements.
+
+The libraries included in the suite are supported on both Intel® Xeon™ CPUs and Intel® Data Center GPUs, and can be easily integrated into existing workflows using FFmpeg plugins provided as part of the libraries.  The libraries are also available as part of the [Intel® Edge AI Suites](https://github.com/open-edge-platform/edge-ai-suites) platform, the [Intel® Tiber™ Broadcast Suite](https://github.com/OpenVisualCloud/Intel-Tiber-Broadcast-Suite), and the [Open Visual Cloud project](https://github.com/OpenVisualCloud/Intel-Tiber-Broadcast-Suite).
+
+## Key Features
+- **Video Super Resolution:** Includes support for four pre-trained models, optimized for best performance on Intel® Xeon™ CPUs and Intel® Datacenter GPU hardware.
+  - **Enhanced RAISR** – Optimized C/C++ implementation of the [Rapid and Accurate Image Super Resolution (RAISR)](https://arxiv.org/pdf/1606.01299.pdf) algorithm, with pre-trained filters to support 1.5 and 2x up-scaling, with options for low-res, high-res, and denoising.  Details of this algorithm can be found in our joint paper with AWS presented at [Mile High Video 2024](https://dl.acm.org/doi/10.1145/3638036.3640290).
+  - **TSENet** – Optimized implementation of the [ETDS](https://github.com/ECNUSR/ETDS) algorithm for 2x up-scaling, with enhancements for multi-frame temporal stabilization.  Details of this algorithm can be found in our papers presented at Mile High Video 2025, and at the [NAB 2025 BEIT](https://nabpilot.org/product/tsenet-video-super-resolution-for-broadcast-television/) conference.
+  - **Enhanced EDSR** – Optimized implementation of the [EDSR](https://arxiv.org/pdf/1707.02921.pdf) algorithm for 2x up-scaling, using OpenVINO.
+  - **Enhanced BasicVSR** – Optimized implementation of the [BasicVSR](https://arxiv.org/pdf/2012.02181.pdf) algorithm for 2x up-scaling, using OpenVINO.
+- **Video Bit Rate Optimization (SVP)**: This pre-processor works with any standard codec (HEVC, AVC, AV1) to reduce the video bit-rate of the encoder output without impacting video quality (as measured by VMAF metrics).
+- **Hardware Platforms Supported** – All VSR and SVP models are optimized for Intel® Xeon™ CPUs and Intel® Datacenter GPUs, and take advantage of support for real-time processing and acceleration through Intel® Advanced Vector Extensions (Intel® AVX) and Intel® Advanced Matrix Extensions (Intel® AMX) instructions.
+
+| Algorithm | Processor Families | CPU Instruction Sets | Intel GPU Support | 
+------------|--------------------|----------------------|-------------------|
+| Enhanced RAISR | 3rd Gen Intel® Xeon™ Scalable (Ice Lake), 4th Gen Intel Xeon Scalable (recommended) and later | Intel® AVX (AVX2, AVX512, and AVX512FP16) | Flex 170 | 
+| TSENet | 4th Gen Intel Xeon Scalable and later |Intel® AMX (FP16) | Flex 170, ARC770 |
+| Enhanced EDSR |4th Gen Intel Xeon Scalable and later |Intel® AMX (FP32) | Flex 170, ARC770 |
+| Enhanced Basic VSR| 4th Gen Intel Xeon Scalable and later |Intel® AMX | Flex 170, ARC770 |
 
 ## Installing
 
@@ -7,8 +28,8 @@ The main goal of developing AI Suites is to facilitate customer evaluation. The 
 - Linux based OS
 - [Docker](https://www.docker.com/)
 - [Kubernetes](https://kubernetes.io/docs/home/)
-- [Hlem Charts](https://helm.sh/)
-- Option: Intel GPU devices require [Intel GPU device plugin for Kubernetes](https://intel.github.io/intel-device-plugins-for-kubernetes/cmd/gpu_plugin/README.html)
+- [Helm Charts](https://helm.sh/)
+- Optional: Intel GPU devices require the [Intel GPU device plugin for Kubernetes](https://intel.github.io/intel-device-plugins-for-kubernetes/cmd/gpu_plugin/README.html)
 
 ### Building iVSR RAISR Image
 
