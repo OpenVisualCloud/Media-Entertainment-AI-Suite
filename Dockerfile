@@ -376,13 +376,14 @@ RUN if [ -f "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ]; then \
 
 WORKDIR ${WORKSPACE}
 
-# Create one non-root user and group
-RUN groupadd -r myuser && useradd -r -g myuser myuser
+# Create one non-root user, group and owner of WORSPACE
+RUN groupadd -g 2110 vfio && \
+    groupadd -g 13000 ivsr && \
+    useradd -m -s /bin/bash -G vfio,ivsr -u 13000 ivsr && \
+    usermod -aG sudo ivsr && \
+    chown -R ivsr:ivsr "${WORKSPACE}"
 
-# Change the owner of WORSPACE to myuser
-RUN chown -R myuser:myuser ${WORKSPACE}
-
-# Switch to myuser
-USER myuser
+# Switch to ivsr
+USER ivsr
 
 CMD ["/bin/bash"]

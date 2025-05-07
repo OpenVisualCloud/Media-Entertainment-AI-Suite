@@ -47,11 +47,12 @@ jobs:
           LINTER_RULES_PATH: ".github/configs"
           VALIDATE_BASH_EXEC: true
           VALIDATE_BASH: true
+          VALIDATE_CHECKOV: true
           VALIDATE_CPP: true
           VALIDATE_GITHUB_ACTIONS: true
           VALIDATE_JSON_PRETTIER: true
           VALIDATE_JSONC_PRETTIER: true
           VALIDATE_MARKDOWN: true
           VALIDATE_PYTHON_BLACK: true
-          VALIDATE_YAML_PRETTIER: true
+          VALIDATE_YAML: true
           VALIDATE_DOCKERFILE_HADOLINT: true

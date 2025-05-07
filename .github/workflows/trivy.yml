@@ -1,14 +1,14 @@
 name: Trivy
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
     inputs:
       branch:
-        description: 'branch to run scans on'
-        default: 'main'
+        description: "branch to run scans on"
+        default: "main"
         type: string
 
 permissions:
@@ -22,7 +22,7 @@ jobs:
   scan-fs-mode:
     permissions:
       contents: read
-      security-events: write  # for github/codeql-action/upload-sarif to upload SARIF results
+      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
     runs-on: ubuntu-22.04
     name: "Trivy: Perform fs mode scans job"
     steps:
@@ -39,11 +39,11 @@ jobs:
       - name: "Trivy: Run vulnerability scanner for type=fs (out=sarif)"
         uses: aquasecurity/trivy-action@99baf0d8b4e787c3cfd7b602664c8ce60a43cd38 # v0.30.0
         with:
-          scan-type: 'fs'
+          scan-type: "fs"
           ignore-unfixed: true
-          format: 'sarif'
-          output: 'trivy-fs-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif'
-          severity: 'HIGH'
+          format: "sarif"
+          output: "trivy-fs-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
+          severity: "HIGH"
 
       - name: "Trivy: Upload fs scan results to GitHub Security tab"
         uses: github/codeql-action/upload-sarif@b611370bb5703a7efb587f9d136a52ea24c5c38c # v3.25.11
@@ -61,7 +61,7 @@ jobs:
   scan-config-mode:
     permissions:
       contents: read
-      security-events: write  # for github/codeql-action/upload-sarif to upload SARIF results
+      security-events: write # for github/codeql-action/upload-sarif to upload SARIF results
     runs-on: ubuntu-22.04
     name: "Trivy: Perform config mode scans job"
     steps:
@@ -79,8 +79,8 @@ jobs:
         uses: aquasecurity/trivy-action@99baf0d8b4e787c3cfd7b602664c8ce60a43cd38 # v0.30.0
         with:
           scan-type: config
-          exit-code: '0'
-          format: 'sarif'
+          exit-code: "0"
+          format: "sarif"
           output: "trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
 
       - name: "Trivy: Run vulnerability scanner for type=config (out=table)"
@@ -88,8 +88,8 @@ jobs:
         uses: aquasecurity/trivy-action@99baf0d8b4e787c3cfd7b602664c8ce60a43cd38 # v0.30.0
         with:
           scan-type: config
-          exit-code: '0'
-          format: 'table'
+          exit-code: "0"
+          format: "table"
           output: "trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.txt"
 
       - name: "Trivy: Upload scan results to GitHub Security tab"
