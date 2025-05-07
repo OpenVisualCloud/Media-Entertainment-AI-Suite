@@ -2,9 +2,9 @@ name: Docker Build
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 env:
@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   ivsr-image-build:
-    name: Build sdk Docker Image
+    name: "docker build: build image"
     uses: ./.github/workflows/build_docker_tpl.yml
     permissions:
       contents: write
@@ -30,7 +30,7 @@ jobs:
     with:
       docker_registry: "ghcr.io"
       docker_registry_prefix: "openvisualcloud/media-entertainment-ai-suite"
-      docker_file_path:  "Dockerfile"
+      docker_file_path: "Dockerfile"
       docker_image_name: "ivsr_raisr"
       docker_image_tag: "${{ github.sha }}"
       docker_registry_login: true

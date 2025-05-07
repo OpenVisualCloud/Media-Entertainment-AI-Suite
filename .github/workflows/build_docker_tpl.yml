@@ -6,15 +6,15 @@ on:
       build_type:
         required: false
         type: string
-        default: 'Release'
+        default: "Release"
       docker_registry:
         required: false
         type: string
-        default: 'ghcr.io'
+        default: "ghcr.io"
       docker_registry_prefix:
         required: false
         type: string
-        default: 'openvisualcloud/media-entertainment-ai-suite'
+        default: "openvisualcloud/media-entertainment-ai-suite"
       docker_registry_login:
         required: false
         type: boolean
@@ -26,11 +26,11 @@ on:
       docker_build_args:
         required: false
         type: string
-        default: ''
+        default: ""
       docker_build_platforms:
         required: false
         type: string
-        default: 'linux/amd64'
+        default: "linux/amd64"
       docker_image_tag:
         required: false
         type: string
@@ -40,7 +40,7 @@ on:
       docker_file_path:
         required: false
         type: string
-        default: './Dockerfile'
+        default: "./Dockerfile"
     secrets:
       docker_registry_login:
         required: false
@@ -91,7 +91,7 @@ jobs:
           dockerfile: "${{ env.DOCKER_FILE_PATH }}"
           config: .github/configs/hadolint.yaml
           format: sarif
-          output-file:  "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+          output-file: "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
           failure-threshold: error
 
       - name: "${{ inputs.docker_image_name }}: Scanner Hadolint upload results as artifacts"
@@ -183,10 +183,10 @@ jobs:
         continue-on-error: true
         with:
           image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
-          scan-type: 'image'
-          format: 'github'
-          scanners: 'vuln,secret,misconfig,license'
-          output: 'dependency-results.sbom.json'
+          scan-type: "image"
+          format: "github"
+          scanners: "vuln,secret,misconfig,license"
+          output: "dependency-results.sbom.json"
           github-pat: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload sbom report as a Github artifact"
@@ -194,7 +194,7 @@ jobs:
         continue-on-error: true
         with:
           name: trivy-sbom-report
-          path: '${{ github.workspace }}/dependency-results.sbom.json'
+          path: "${{ github.workspace }}/dependency-results.sbom.json"
           retention-days: 7
 
       - name: "${{ inputs.docker_image_name }}: smoke test iVSR"
