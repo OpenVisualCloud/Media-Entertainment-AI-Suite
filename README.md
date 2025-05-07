@@ -27,7 +27,7 @@ Just run the below command to build ivsr_raisr image
 ./build_ivsr_raisr_docker.sh
 ```
 
-This will result in docker image named `ivsr_raisr:latest` with both `ivsr v24.12` and `raisr v23.11.1` included.
+This will result in docker image named `docker.io/ivsr_raisr:25.04-alpha` with both `ivsr v24.12` and `raisr v23.11.1` included.
 
 ### [Option] Instructions to Deploy AI Suite on Intel GPU
 
