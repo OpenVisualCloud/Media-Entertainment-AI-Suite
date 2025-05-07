@@ -1,3 +1,11 @@
+[![Linter](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/linter.yml/badge.svg)](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/linter.yml)
+[![Anti Virus Scan](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/anti_virus_scan.yml/badge.svg)](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/anti_virus_scan.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/badge)](https://securityscorecards.dev/viewer/?uri=github.com/OpenVisualCloud/Media-Entertainment-AI-Suite)
+[![Docker Build](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/build_docker.yml/badge.svg)](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/build_docker.yml)
+[![Trivy](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/trivy.yml/badge.svg)](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/trivy.yml)
+> [!TIP]
+> [Full Documentation](https://openvisualcloud.github.io/Media-Entertainment-AI-Suite) for [Intel®](https://intel.com) [Media & Entertainment AI Suite](https://openvisualcloud.github.io/Media-Entertainment-AI-Suite).
+
 # Media & Entertainment AI Suite
 The main goal of developing AI Suites is to facilitate customer evaluation. The current Media Entertainment AI Suite include video super-resolution and smart video preprocessing. For video super-resolution, both iVSR and RAISR envoriment are supported. Users can choose models IVSR supported or RAISR to do video super-resolution.
 
