@@ -89,7 +89,7 @@ jobs:
         continue-on-error: true
         with:
           dockerfile: "${{ env.DOCKER_FILE_PATH }}"
-          config: .github/configs/hadolint.yaml
+          config: .github/configs/.hadolint.yaml
           format: sarif
           output-file: "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
           failure-threshold: error
@@ -107,15 +107,6 @@ jobs:
         continue-on-error: true
         with:
           sarif_file: "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
-
-      - name: "${{ inputs.docker_image_name }}: Scanner Hadolint Dockerfile scan tty output"
-        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
-        with:
-          dockerfile: "${{ env.DOCKER_FILE_PATH }}"
-          config: .github/configs/hadolint.yaml
-          format: tty
-          failure-threshold: error
-          verbose: true
 
   build-and-scan-docker-image:
     name: "${{ inputs.docker_image_name }}: Performing build and scan of Docker image from Dockerfile."

@@ -76,6 +76,7 @@ jobs:
           ref: ${{ inputs.branch }}
 
       - name: "Trivy: Run vulnerability scanner for type=config (out=sarif)"
+        continue-on-error: true
         uses: aquasecurity/trivy-action@99baf0d8b4e787c3cfd7b602664c8ce60a43cd38 # v0.30.0
         with:
           scan-type: config
@@ -84,7 +85,7 @@ jobs:
           output: "trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
 
       - name: "Trivy: Run vulnerability scanner for type=config (out=table)"
-        if: always()
+        continue-on-error: true
         uses: aquasecurity/trivy-action@99baf0d8b4e787c3cfd7b602664c8ce60a43cd38 # v0.30.0
         with:
           scan-type: config

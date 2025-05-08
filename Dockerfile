@@ -118,7 +118,7 @@ RUN bash ./setup_vars_opencv4.sh
 RUN if [ "$OV_VERSION" = "2022.3" ]; then \
         apt-get update; \
         xargs apt-get install -y --no-install-recommends --fix-missing < ${IVSR_DIR}/ivsr_sdk/dgpu_umd_stable_555_0124.txt; \
-        apt-get install -y vainfo clinfo; \
+        apt-get install -y --no-install-recommends vainfo clinfo; \
         apt-get clean; \
         rm -rf  /var/lib/apt/lists/*; \
     fi
@@ -127,7 +127,7 @@ WORKDIR /tmp/gpu_deps
 RUN if [ "$OV_VERSION" = "2023.2" ] || [ "$OV_VERSION" = "2024.5" ]; then \
       # for GPU
       apt-get update; \
-      apt-get install -y vainfo clinfo; \
+      apt-get install -y --no-install-recommends vainfo clinfo; \
       apt-get install -y --no-install-recommends ocl-icd-libopencl1; \
       apt-get clean; \
       rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*; \
@@ -158,7 +158,7 @@ ENV LD_LIBRARY_PATH=${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install/lib
 ENV OpenCV_DIR=${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install/lib/cmake/opencv4
 ARG IVSR_OV_DIR=${IVSR_DIR}/ivsr_ov/based_on_openvino_${OV_VERSION}/openvino
 ARG CUSTOM_OV_INSTALL_DIR=${IVSR_OV_DIR}/install
-ARG IVSR_SDK_DIR=${IVSR_DIR}/ivsr_sdk/
+ARG IVSR_SDK_DIR=${IVSR_DIR}/ivsr_sdk
 ARG PYTHON=python3.10
 
 RUN apt-get update && \
@@ -193,85 +193,85 @@ RUN apt-get update && \
 RUN pip --no-cache-dir install --upgrade \
       pip \
       setuptools && \
-    ln -sf $(which ${PYTHON}) /usr/local/bin/python && \
-    ln -sf $(which ${PYTHON}) /usr/local/bin/python3 && \
-    ln -sf $(which ${PYTHON}) /usr/bin/python && \
-    ln -sf $(which ${PYTHON}) /usr/bin/python3
+    ln -sf "$(which "${PYTHON}")" /usr/local/bin/python && \
+    ln -sf "$(which "${PYTHON}")" /usr/local/bin/python3 && \
+    ln -sf "$(which "${PYTHON}")" /usr/bin/python && \
+    ln -sf "$(which "${PYTHON}")" /usr/bin/python3
 
-ARG OV_REPO=https://github.com/openvinotoolkit/openvino.git
-ARG OV_BRANCH=${OV_VERSION}.0
-WORKDIR ${IVSR_OV_DIR}
+    ARG OV_REPO=https://github.com/openvinotoolkit/openvino.git
+    ARG OV_BRANCH=${OV_VERSION}.0
+    WORKDIR ${IVSR_OV_DIR}
 
-RUN git config --global user.email "noname@example.com" && \
-    git config --global user.name "no name" && \
-    git clone ${OV_REPO} ${IVSR_OV_DIR} && \
-    git checkout ${OV_BRANCH} && \
-    git submodule update --init --recursive
+    RUN git config --global user.email "noname@example.com" && \
+        git config --global user.name "no name" && \
+        git clone ${OV_REPO} ${IVSR_OV_DIR} && \
+        git checkout ${OV_BRANCH} && \
+        git submodule update --init --recursive
 
-RUN if [ "$ENABLE_OV_PATCH" = "true" ] && [ "$OV_VERSION" = "2022.3" ]; then \
-        { set -e; \
-          for patch_file in $(find ../patches -iname "*.patch" | sort -n); do \
-            echo "Applying: ${patch_file}"; \
-            git am --whitespace=fix ${patch_file}; \
-          done; }; \
-    fi
+    RUN if [ "$ENABLE_OV_PATCH" = "true" ] && [ "$OV_VERSION" = "2022.3" ]; then \
+            { set -e; \
+              for patch_file in $(find ../patches -iname "*.patch" | sort -n); do \
+                echo "Applying: ${patch_file}"; \
+                git am --whitespace=fix ${patch_file}; \
+              done; }; \
+        fi
 
-WORKDIR ${IVSR_DIR}/ivsr_ov/based_on_openvino_${OV_VERSION}
-RUN mkdir -p openvino/build && \
-    cd openvino/build && \
-    cmake \
-      -DCMAKE_INSTALL_PREFIX="${PWD}/../install" \
-      -DENABLE_INTEL_CPU=ON \
-      -DENABLE_CLDNN=ON \
-      -DENABLE_INTEL_GPU=ON \
-      -DENABLE_ONEDNN_FOR_GPU=OFF \
-      -DENABLE_INTEL_GNA=OFF \
-      -DENABLE_INTEL_MYRIAD_COMMON=OFF \
-      -DENABLE_INTEL_MYRIAD=OFF \
-      -DENABLE_PYTHON=ON \
-      -DENABLE_OPENCV=ON \
-      -DENABLE_SAMPLES=ON \
-      -DENABLE_CPPLINT=OFF \
-      -DTREAT_WARNING_AS_ERROR=OFF \
-      -DENABLE_TESTS=OFF \
-      -DENABLE_GAPI_TESTS=OFF \
-      -DENABLE_BEH_TESTS=OFF \
-      -DENABLE_FUNCTIONAL_TESTS=OFF \
-      -DENABLE_OV_CORE_UNIT_TESTS=OFF \
-      -DENABLE_OV_CORE_BACKEND_UNIT_TESTS=OFF \
-      -DENABLE_DEBUG_CAPS=ON \
-      -DENABLE_GPU_DEBUG_CAPS=ON \
-      -DENABLE_CPU_DEBUG_CAPS=ON \
-      -DCMAKE_BUILD_TYPE=Release \
-      .. && \
-    make -j $(nproc) && \
-    make install && \
-    bash "${PWD}/../install/setupvars.sh" && \
-    install ${IVSR_OV_DIR}/install/runtime/3rdparty/tbb/lib/* /usr/local/lib && \
-    install ${IVSR_OV_DIR}/install/runtime/lib/intel64/* /usr/local/lib && \
-    install /workspace/opencv-4.5.3-openvino-2021.4.2/install/lib/* /usr/local/lib && \
-    install /workspace/opencv-4.5.3-openvino-2021.4.2/install/bin/* /usr/local/bin && \
-    mv "${IVSR_OV_DIR}/install" "/workspace/ivsr_ov-openvino-${OV_VERSION}" && \
-    cd ../.. && \
-    rm -rf "${IVSR_OV_DIR}" || true
+    WORKDIR ${IVSR_DIR}/ivsr_ov/based_on_openvino_${OV_VERSION}
+    RUN mkdir -p openvino/build && \
+        cd openvino/build && \
+        cmake \
+          -DCMAKE_INSTALL_PREFIX="${PWD}/../install" \
+          -DENABLE_INTEL_CPU=ON \
+          -DENABLE_CLDNN=ON \
+          -DENABLE_INTEL_GPU=ON \
+          -DENABLE_ONEDNN_FOR_GPU=OFF \
+          -DENABLE_INTEL_GNA=OFF \
+          -DENABLE_INTEL_MYRIAD_COMMON=OFF \
+          -DENABLE_INTEL_MYRIAD=OFF \
+          -DENABLE_PYTHON=ON \
+          -DENABLE_OPENCV=ON \
+          -DENABLE_SAMPLES=ON \
+          -DENABLE_CPPLINT=OFF \
+          -DTREAT_WARNING_AS_ERROR=OFF \
+          -DENABLE_TESTS=OFF \
+          -DENABLE_GAPI_TESTS=OFF \
+          -DENABLE_BEH_TESTS=OFF \
+          -DENABLE_FUNCTIONAL_TESTS=OFF \
+          -DENABLE_OV_CORE_UNIT_TESTS=OFF \
+          -DENABLE_OV_CORE_BACKEND_UNIT_TESTS=OFF \
+          -DENABLE_DEBUG_CAPS=ON \
+          -DENABLE_GPU_DEBUG_CAPS=ON \
+          -DENABLE_CPU_DEBUG_CAPS=ON \
+          -DCMAKE_BUILD_TYPE=Release \
+          .. && \
+        make -j $(nproc) && \
+        make install && \
+        bash "${PWD}/../install/setupvars.sh" && \
+        install ${IVSR_OV_DIR}/install/runtime/3rdparty/tbb/lib/* /usr/local/lib && \
+        install ${IVSR_OV_DIR}/install/runtime/lib/intel64/* /usr/local/lib && \
+        install /workspace/opencv-4.5.3-openvino-2021.4.2/install/lib/* /usr/local/lib && \
+        install /workspace/opencv-4.5.3-openvino-2021.4.2/install/bin/* /usr/local/bin && \
+        mv "${IVSR_OV_DIR}/install" "/workspace/ivsr_ov-openvino-${OV_VERSION}" && \
+        cd ../.. && \
+        rm -rf "${IVSR_OV_DIR}" || true
 
-ARG CUSTOM_IE_DIR=${CUSTOM_OV_INSTALL_DIR}/runtime
-ARG CUSTOM_IE_LIBDIR=${CUSTOM_IE_DIR}/lib/intel64
-ARG CUSTOM_OV=${CUSTOM_IE_DIR}
+    ARG CUSTOM_IE_DIR=${CUSTOM_OV_INSTALL_DIR}/runtime
+    ARG CUSTOM_IE_LIBDIR=${CUSTOM_IE_DIR}/lib/intel64
+    ARG CUSTOM_OV=${CUSTOM_IE_DIR}
 
-ENV OpenVINO_DIR=${CUSTOM_IE_DIR}/cmake
-ENV InferenceEngine_DIR=${CUSTOM_IE_DIR}/cmake
-ENV TBB_DIR=${CUSTOM_IE_DIR}/3rdparty/tbb/cmake
-ENV ngraph_DIR=${CUSTOM_IE_DIR}/cmake
-ENV LD_LIBRARY_PATH=${CUSTOM_IE_DIR}/3rdparty/tbb/lib:${CUSTOM_IE_LIBDIR}:$LD_LIBRARY_PATH
+    ENV OpenVINO_DIR=${CUSTOM_IE_DIR}/cmake
+    ENV InferenceEngine_DIR=${CUSTOM_IE_DIR}/cmake
+    ENV TBB_DIR=${CUSTOM_IE_DIR}/3rdparty/tbb/cmake
+    ENV ngraph_DIR=${CUSTOM_IE_DIR}/cmake
+    ENV LD_LIBRARY_PATH=${CUSTOM_IE_DIR}/3rdparty/tbb/lib:${CUSTOM_IE_LIBDIR}:$LD_LIBRARY_PATH
 
-WORKDIR ${IVSR_SDK_DIR}/build
-RUN cmake .. \
-      -DENABLE_LOG=OFF -DENABLE_PERF=OFF -DENABLE_THREADPROCESS=ON \
-      -DCMAKE_BUILD_TYPE=Release && \
-    make -j $(nproc) && \
-    make install && \
-    echo "Building vsr sdk finished."
+    WORKDIR ${IVSR_SDK_DIR}/build
+    RUN cmake .. \
+          -DENABLE_LOG=OFF -DENABLE_PERF=OFF -DENABLE_THREADPROCESS=ON \
+          -DCMAKE_BUILD_TYPE=Release && \
+        make -j $(nproc) && \
+        make install && \
+        echo "Building vsr sdk finished."
 
 # build raisr
 # install 3rd-party libraries required by raisr and raisr
@@ -352,9 +352,9 @@ COPY ./patches/* ${FFMPEG_DIR}/
 RUN git -C "${FFMPEG_DIR}" am "${FFMPEG_DIR}/0001-Upgrade-Raisr-ffmpeg-plugin-to-n7.1-from-n6.1.1.patch"
 
 RUN if [ -f "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ]; then \
-      . ${CUSTOM_OV_INSTALL_DIR}/setvars.sh ; \
+      . "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ; \
     fi && \
-    export LD_LIBRARY_PATH=${IVSR_SDK_DIR}/lib:${CUSTOM_IE_LIBDIR}:${TBB_DIR}/../lib:"$LD_LIBRARY_PATH" && \
+    export LD_LIBRARY_PATH="${IVSR_SDK_DIR}/lib:${CUSTOM_IE_LIBDIR}:${TBB_DIR}/../lib:${LD_LIBRARY_PATH}" && \
     ./configure \
     --extra-cflags=-fopenmp \
     --extra-ldflags=-fopenmp \
@@ -371,7 +371,7 @@ RUN if [ -f "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ]; then \
     --enable-opencl \
     --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
     --enable-cross-compile && \
-    make -j $(nproc) && \
+    make -j "$(nproc)" && \
     make install
 
 WORKDIR ${WORKSPACE}
@@ -379,7 +379,7 @@ WORKDIR ${WORKSPACE}
 # Create one non-root user, group and owner of WORSPACE
 RUN groupadd -g 2110 vfio && \
     groupadd -g 13000 ivsr && \
-    useradd -m -s /bin/bash -G vfio,ivsr -u 13000 ivsr && \
+    useradd -m -s /bin/bash -G vfio -g ivsr -u 13000 ivsr && \
     usermod -aG sudo ivsr && \
     chown -R ivsr:ivsr "${WORKSPACE}"
 
