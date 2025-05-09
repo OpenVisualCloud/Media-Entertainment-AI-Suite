@@ -2,9 +2,9 @@ name: Docker Build
 
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 env:
@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   ivsr-image-build:
-    name: Build sdk Docker Image
+    name: "docker build: build image"
     uses: ./.github/workflows/build_docker_tpl.yml
     permissions:
       contents: write
@@ -30,7 +30,7 @@ jobs:
     with:
       docker_registry: "ghcr.io"
       docker_registry_prefix: "openvisualcloud/media-entertainment-ai-suite"
-      docker_file_path:  "Dockerfile"
+      docker_file_path: "Dockerfile"
       docker_image_name: "ivsr_raisr"
       docker_image_tag: "${{ github.sha }}"
       docker_registry_login: true
@@ -38,21 +38,3 @@ jobs:
     secrets:
       docker_registry_login: "${{ secrets.DOCKER_REGISTRY_LOGIN }}"
       docker_registry_passkey: "${{ secrets.DOCKER_REGISTRY_PASSKEY }}"
-
-  # ivsr-container-test:
-  #   runs-on: ubuntu-22.04
-  #   needs: ivsr-image-build
-  #   container:
-  #     image: "ghcr.io/openvisualcloud/media-entertainment-ai-suite/ivsr_raisr:${{ github.sha }}"
-  #     credentials:
-  #       username: ${{ secrets.DOCKER_REGISTRY_LOGIN || github.actor }}
-  #       password: ${{ secrets.DOCKER_REGISTRY_PASSKEY || secrets.github_token }}
-  #   steps:
-  #     - name: Run ffmpeg iVSR plugin help
-  #       run: ./ffmpeg/ffmpeg -help filter=dnn_processing
-
-  #     - name: Run ffmpeg raisr plugin help
-  #       run: ./ffmpeg/ffmpeg -help filter=raisr
-
-  #     - name: Run ffmpeg raisr_opencl plugin help
-  #       run: ./ffmpeg/ffmpeg -help filter=raisr_opencl

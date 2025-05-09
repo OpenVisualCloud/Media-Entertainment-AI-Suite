@@ -1,4 +1,13 @@
 # Media & Entertainment AI Suite
+
+[![Linter](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/linter.yml/badge.svg)](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/linter.yml)
+[![Anti Virus Scan](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/anti_virus_scan.yml/badge.svg)](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/anti_virus_scan.yml)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/badge)](https://securityscorecards.dev/viewer/?uri=github.com/OpenVisualCloud/Media-Entertainment-AI-Suite)
+[![Docker Build](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/build_docker.yml/badge.svg)](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/build_docker.yml)
+[![Trivy](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/trivy.yml/badge.svg)](https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/actions/workflows/trivy.yml)
+> [!TIP]
+> [Full Documentation](https://openvisualcloud.github.io/Media-Entertainment-AI-Suite) for [Intel®](https://intel.com) [Media & Entertainment AI Suite](https://openvisualcloud.github.io/Media-Entertainment-AI-Suite).
+
 The main goal of developing AI Suites is to facilitate customer evaluation. The current Media Entertainment AI Suite include video super-resolution and smart video preprocessing. For video super-resolution, both iVSR and RAISR envoriment are supported. Users can choose models IVSR supported or RAISR to do video super-resolution.
 
 ## Installing
@@ -12,9 +21,13 @@ The main goal of developing AI Suites is to facilitate customer evaluation. The 
 
 ### Building iVSR RAISR Image
 
-<br> just run the below command to build ivsr_raisr image
-`./build_ivsr_raisr_docker.sh` </br>
-then will get ivsr_raisr:latest image this image include both ivsr v24.12  and raisr v23.11.1 env.
+Just run the below command to build ivsr_raisr image
+
+```bash
+./build_ivsr_raisr_docker.sh
+```
+
+This will result in docker image named `docker.io/ivsr_raisr:25.04-alpha` with both `ivsr v24.12` and `raisr v23.11.1` included.
 
 ### [Option] Instructions to Deploy AI Suite on Intel GPU
 
@@ -41,7 +54,9 @@ With these changes, the AI Suite should be configured to utilize an Intel GPU on
 
 ### Installing Helm Charts to Start a AI Suite Service
 
-To install the Helm Charts to start AI Suite service to process videos via ffmpeg command with ivsr or raisr filter, use the Helm charts located in the [/helm](helm) directory. Before proceeding with the installation, ensure that you provide the necessary values for specific parameters in the `values.yaml` file. Below is an example of the settings in `values.yaml`. For detailed information on using ivsr and raisr parameters, please refer to their documentation.
+To install the Helm Charts to start AI Suite service to process videos via ffmpeg command with ivsr or raisr filter, use the Helm charts located in the [/helm](helm) directory.
+Before proceeding with the installation, ensure that you provide the necessary values for specific parameters in the `values.yaml` file.
+Below is an example of the settings in `values.yaml`. For detailed information on using ivsr and raisr parameters, please refer to their documentation.
 
 ```yaml
 # Set directory path of test video and output both on host directory that application will process all videos in mp4 format in test_video_dir directory
@@ -91,17 +106,21 @@ User can install the Chart using the following command after configuring the `va
 helm install ai-suite ./helm
 ```
 
-Subsequently, the Helm chart named `ai-suite` was deployed, and the `ai-suite-server-xxx` pod was created that list pods via `kubectl get pods`. This pod empolys ffmpeg to process videos located within the `test_video_dir`, generates outputs in the `output_dir`. The status of `ai-suite-server-xxx` pod shows "Running", which means the service is processing the videos with specified filter via ffmpeg command.
+Subsequently, the Helm chart named `ai-suite` was deployed, and the `ai-suite-server-xxx` pod was created that list pods via `kubectl get pods`.
+This pod empolys ffmpeg to process videos located within the `test_video_dir`, generates outputs in the `output_dir`. The status of `ai-suite-server-xxx` pod shows "Running", which means the service is processing the videos with specified filter via ffmpeg command.
 
 ### Check Output Videos and Uninstall Helm Charts to Terminate the Service
-Users can determine whether the service is completed by checking the status of the `ai-suite-server-xxx` pod. If the status is completed, it means that the service is completed and all videos have been processed. And then can check output videos in the `output_dir` directory on host, the output files are named ivsr_output_xxx.mp4 or raisr_output_xxx.mp4.
+
+Users can determine whether the service is completed by checking the status of the `ai-suite-server-xxx` pod. If the status is completed, it means that the service is completed and all videos have been processed.
+And then can check output videos in the `output_dir` directory on host, the output files are named ivsr_output_xxx.mp4 or raisr_output_xxx.mp4.
 
 It needs to terminate the ai-suite service via uninstalling Helm Charts after the serive is completed.
 
 ```bash
 helm uninstall ai-suite
 ```
+
 ## Note
- 
- This project is under development.
- All source code and features on the main branch are for the purpose of testing or evaluation and not production ready.
+
+This project is under development.
+All source code and features on the main branch are for the purpose of testing or evaluation and not production ready.

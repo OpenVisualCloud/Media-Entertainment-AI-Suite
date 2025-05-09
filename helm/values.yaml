@@ -2,7 +2,6 @@
 ##
 ## SPDX-License-Identifier: BSD-3-Clause
 
-
 # Default values for helm.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
@@ -14,11 +13,23 @@ output_dir: /home/spr-lxx/workspace/output/
 # Set directory path which include IR file (.xml and .bin)
 model_dir: /home/spr-lxx/workspace/ivsr/ivsr_2024.05/SVP_Basic/dunet_2024.01/INT8-performance/
 
+image_registry: "docker.io"
+image_tag: "ivsr_raisr:25.04-alpha"
 # Filter Configuration
 # One service only support select one filter from ivsr and raisr to process videos.
 # Select either ivsr or raisr for video processing by setting the 'selected' property to true.
 # Such as set `selected` of ivsr item to true and `selected` of raisr to false to select ivsr filter to do process videos.
 # Refer to the documentation of ivsr and raisr for configuration details.
+resources:
+  requests:
+    cpu: 8
+    memory: 16Gi
+    i915: 1
+  limits:
+    cpu: 8
+    memory: 16Gi
+    i915: 1
+
 filter_parameters:
   ivsr:
     selected: true

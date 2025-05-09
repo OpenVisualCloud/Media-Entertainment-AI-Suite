@@ -2,13 +2,18 @@
 ##
 ## SPDX-License-Identifier: BSD-3-Clause
 
-
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: ai-suite-server
+  namespace: "{{ .Release.Namespace }}"
   labels:
-    app: ai-suite-server
+    helm.sh/chart: "{{ printf \"%s-%s\" .Chart.Name .Chart.Version | trunc 63 | replace \"+\" \"_\" | trimSuffix \"_\" }}"
+    helm.sh/release-name: "{{ .Release.Name }}"
+    app.kubernetes.io/version: "{{ .Chart.AppVersion }}"
+    app.kubernetes.io/instance: "{{ .Release.Name }}"
+    app.kubernetes.io/part-of: intel-ai-suite-server
+    app.kubernetes.io/managed-by: "{{ .Release.Service }}"
 spec:
   #selector:
   #  matchLabels:
@@ -16,25 +21,38 @@ spec:
   template:
     metadata:
       labels:
-        app: ai-suite-server
+        helm.sh/chart: "{{ printf \"%s-%s\" .Chart.Name .Chart.Version | trunc 63 | replace \"+\" \"_\" | trimSuffix \"_\" }}"
+        helm.sh/release-name: "{{ .Release.Name }}"
+        app.kubernetes.io/version: "{{ .Chart.AppVersion }}"
+        app.kubernetes.io/instance: "{{ .Release.Name }}"
+        app.kubernetes.io/part-of: intel-ai-suite-server
+        app.kubernetes.io/managed-by: "{{ .Release.Service }}"
     spec:
       containers:
         - name: ai-suite-server
-          image: ivsr_raisr:latest
+          image: "{{ .Values.image_registry }}/{{ .Values.image_tag }}"
           imagePullPolicy: IfNotPresent
           securityContext:
+            runAsNonRoot: true
             readOnlyRootFilesystem: true
             allowPrivilegeEscalation: false
-            runAsUser: 1000 # non-root user UID
-            runAsGroup: 3000 #
+            runAsUser: 13000 # non-root user UID
+            runAsGroup: 13000 #
             capabilities:
               drop: ["ALL"]
-          #TBD - figure out some basic resource requests
-          #resources:
-          #  limits:
-          #    gpu.intel.com/i915: 1
-          #  requests:
-          #    gpu.intel.com/i915: 1
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+          # TBD - figure out some basic resource requests
+          #       regarding gpu.intel.com/i915: 1
+            limits:
+              cpu: "{{ .Values.resources.limits.cpu }}"
+              memory: "{{ .Values.resources.limits.memory }}"
+              gpu.intel.com/i915: "{{ .Values.resources.limits.i915 }}"
+            requests:
+              cpu: "{{ .Values.resources.requests.cpu }}"
+              memory: "{{ .Values.resources.requests.memory }}"
+              gpu.intel.com/i915: "{{ .Values.resources.requests.i915 }}"
           volumeMounts:
             - name: tmp-volume
               mountPath: /tmp
@@ -45,53 +63,50 @@ spec:
             - name: model-dir
               mountPath: /workspace/model
           args:
-          - /bin/bash
-          - -c
-          - >-
-            for i in $(find /workspace/test_video -name "*.mp4");
-            do 
-              video_path="$i"
-              video_name="${video_path##*/}"
-              video_name="${video_name%.*}"
-              model_path=/workspace/model/{{ .Values.modelName }}
-              ivsr_filter_parameters=$(cat <<-EOF | sed ':a;N;$!ba;s/\n\s*//g'
-                format={{ .Values.filter_parameters.ivsr.configuration.format }},
-                dnn_processing=dnn_backend=ivsr:
-                model=${model_path}/{{ .Values.filter_parameters.ivsr.configuration.model_name }}:
-                input=input:output=output:
-                nif={{ .Values.filter_parameters.ivsr.configuration.nif }}:
-                device={{ .Values.filter_parameters.ivsr.configuration.device }}:
-                model_type={{ .Values.filter_parameters.ivsr.configuration.model_type }}:
-                normalize_factor={{ .Values.filter_parameters.ivsr.configuration.normalize_factor }}
-            EOF
-              )
-              raisr_filter_parameters=$(cat <<-EOF | sed ':a;N;$!ba;s/\n\s*//g'
-                raisr=threadcount={{ .Values.filter_parameters.raisr.configuration.threadcount }}:
-                ratio={{ .Values.filter_parameters.raisr.configuration.ratio }}:
-                bits={{ .Values.filter_parameters.raisr.configuration.bits }}:
-                passes={{ .Values.filter_parameters.raisr.configuration.passes }}:
-                asm={{ .Values.filter_parameters.raisr.configuration.asm }}:
-                filterfolder=/workspace/raisr/{{ .Values.filter_parameters.raisr.configuration.filterfolder }}:
-            EOF
-              )
-
-              filter_name="ivsr"
-              filters=$ivsr_filter_parameters
-              if [ "{{ .Values.filter_parameters.raisr.selected }}" = "true" ]; then
-                filters=$raisr_filter_parameters
-                filter_name="raisr"
-              fi
-
-              codec_parameters="-c:v {{ .Values.codec_parameters.encoder }}
-                -c:a copy  
-                -b:v {{ .Values.codec_parameters.bitrate }} 
-                -profile:v {{ .Values.codec_parameters.profile }} 
-                -pix_fmt {{ .Values.codec_parameters.pix_fmt }}"
-
-              sleep 1s;
-              ffmpeg -y -i ${video_path} -vf ${filters} ${codec_parameters} /workspace/test_output/${filter_name}_output_${video_name}.mp4
-              echo $video_name;
-            done;
+            - /bin/bash
+            - -c
+            - >-
+              for i in $(find /workspace/test_video -name "*.mp4");
+              do
+                video_path="$i"
+                video_name="${video_path##*/}"
+                video_name="${video_name%.*}"
+                model_path=/workspace/model/{{ .Values.modelName }}
+                ivsr_filter_parameters=$(cat <<-EOF | sed ':a;N;$!ba;s/\n\s*//g'
+                  format={{ .Values.filter_parameters.ivsr.configuration.format }},
+                  dnn_processing=dnn_backend=ivsr:
+                  model=${model_path}/{{ .Values.filter_parameters.ivsr.configuration.model_name }}:
+                  input=input:output=output:
+                  nif={{ .Values.filter_parameters.ivsr.configuration.nif }}:
+                  device={{ .Values.filter_parameters.ivsr.configuration.device }}:
+                  model_type={{ .Values.filter_parameters.ivsr.configuration.model_type }}:
+                  normalize_factor={{ .Values.filter_parameters.ivsr.configuration.normalize_factor }}
+              EOF
+                )
+                raisr_filter_parameters=$(cat <<-EOF | sed ':a;N;$!ba;s/\n\s*//g'
+                  raisr=threadcount={{ .Values.filter_parameters.raisr.configuration.threadcount }}:
+                  ratio={{ .Values.filter_parameters.raisr.configuration.ratio }}:
+                  bits={{ .Values.filter_parameters.raisr.configuration.bits }}:
+                  passes={{ .Values.filter_parameters.raisr.configuration.passes }}:
+                  asm={{ .Values.filter_parameters.raisr.configuration.asm }}:
+                  filterfolder=/workspace/raisr/{{ .Values.filter_parameters.raisr.configuration.filterfolder }}:
+              EOF
+                )
+                filter_name="ivsr"
+                filters=$ivsr_filter_parameters
+                if [ "{{ .Values.filter_parameters.raisr.selected }}" = "true" ]; then
+                  filters=$raisr_filter_parameters
+                  filter_name="raisr"
+                fi
+                codec_parameters="-c:v {{ .Values.codec_parameters.encoder }}
+                  -c:a copy
+                  -b:v {{ .Values.codec_parameters.bitrate }}
+                  -profile:v {{ .Values.codec_parameters.profile }}
+                  -pix_fmt {{ .Values.codec_parameters.pix_fmt }}"
+                sleep 1s;
+                ffmpeg -y -i ${video_path} -vf ${filters} ${codec_parameters} /workspace/test_output/${filter_name}_output_${video_name}.mp4
+                echo $video_name;
+              done;
       volumes:
         - name: tmp-volume
           emptyDir: {}
@@ -101,14 +116,14 @@ spec:
             type: FileOrCreate
         - name: test-video-dir
           hostPath:
-            path: {{ .Values.test_video_dir }}
+            path: "{{ .Values.test_video_dir }}"
             type: Directory
         - name: test-output-dir
           hostPath:
-            path: {{ .Values.output_dir }}
-            type:  DirectoryOrCreate
+            path: "{{ .Values.output_dir }}"
+            type: DirectoryOrCreate
         - name: model-dir
           hostPath:
-            path: {{ .Values.model_dir}}
+            path: "{{ .Values.model_dir }}"
       restartPolicy: Never
   backoffLimit: 4

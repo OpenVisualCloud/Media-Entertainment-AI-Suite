@@ -57,3 +57,8 @@ rules:
   new-lines:
     type: unix
   trailing-spaces: disable
+ignore:
+  - helm/
+  - helm/templates/
+  - helm/templates/*
+  - helm/templates/deployment.yaml

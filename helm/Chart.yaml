@@ -2,18 +2,29 @@
 ##
 ## SPDX-License-Identifier: BSD-3-Clause
 
-
 apiVersion: v2
 name: ai-suite-microservice
 type: application
-
-# This is the chart version. This version number should be incremented each time you make changes
-# to the chart and its templates, including the app version.
-# Versions are expected to follow Semantic Versioning (https://semver.org/)
+description: Helm chart for deploying Intel Media and Entertainment AI Suite
 version: 1.0.0
+appVersion: ivsr_raisr:25.04-alpha
+home: https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite
 
-# This is the version number of the application being deployed. This version number should be
-# incremented each time you make changes to the application. Versions are not expected to
-# follow Semantic Versioning. They should reflect the version the application is using.
-# It is recommended to use it with quotes.
-#appVersion: "1.16.0"
+maintainers:
+  - name: Dong Jerry
+    email: jerry.dong@intel.com
+  - name: Linkiewicz Milosz
+    email: milosz.linkiewicz@intel.com
+
+keywords:
+  - ai
+  - ivsr
+  - raisr
+  - intel
+  - openvisualcloud
+
+sources:
+  - https://github.com/OpenVisualCloud
+  - https://github.com/OpenVisualCloud/Video-Super-Resolution-Library
+  - https://github.com/OpenVisualCloud/iVSR
+  - https://github.com/OpenVisualCloud/Media-Transport-Library
