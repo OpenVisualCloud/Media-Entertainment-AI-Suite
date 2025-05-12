@@ -349,7 +349,9 @@ RUN { set -e; \
 
 # apply patches of raisr ffmpeg
 COPY ./patches/* ${FFMPEG_DIR}/
-RUN git -C "${FFMPEG_DIR}" am "${FFMPEG_DIR}/0001-Upgrade-Raisr-ffmpeg-plugin-to-n7.1-from-n6.1.1.patch"
+RUN git -C "${FFMPEG_DIR}" am "${FFMPEG_DIR}/0001-Upgrade-Raisr-ffmpeg-plugin-to-n7.1-from-n6.1.1.patch" && \
+    cp -r "${RAISR_DIR}/filters_2x" /filters_2x && \
+    cp -r "${RAISR_DIR}/filters_1.5x" /filters_1.5x
 
 RUN if [ -f "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ]; then \
       . "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ; \

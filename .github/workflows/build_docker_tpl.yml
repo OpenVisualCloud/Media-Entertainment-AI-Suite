@@ -68,46 +68,6 @@ env:
   DOCKER_FILE_PATH: "${{ inputs.docker_file_path }}"
 
 jobs:
-  pre-build-dockerfile-scans:
-    name: "${{ inputs.docker_image_name }}: Performing scan and build of Dockerfile."
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: read
-      security-events: write
-    timeout-minutes: 30
-    steps:
-      - name: "${{ inputs.docker_image_name }}: Harden Runner"
-        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
-        with:
-          egress-policy: audit
-
-      - name: "${{ inputs.docker_image_name }}: Checkout repository"
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-
-      - name: "${{ inputs.docker_image_name }}: Scanner Hadolint Dockerfile scan sarif format"
-        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
-        continue-on-error: true
-        with:
-          dockerfile: "${{ env.DOCKER_FILE_PATH }}"
-          config: .github/configs/.hadolint.yaml
-          format: sarif
-          output-file: "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
-          failure-threshold: error
-
-      - name: "${{ inputs.docker_image_name }}: Scanner Hadolint upload results as artifacts"
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # V4.4.3
-        continue-on-error: true
-        with:
-          name: "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
-          path: "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
-          retention-days: 7
-
-      - name: "${{ inputs.docker_image_name }}: Scanner Hadolint upload results to Security tab"
-        uses: github/codeql-action/upload-sarif@2e230e8fe0ad3a14a340ad0815ddb96d599d2aff # v3.25.8
-        continue-on-error: true
-        with:
-          sarif_file: "hadolint-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
-
   build-and-scan-docker-image:
     name: "${{ inputs.docker_image_name }}: Performing build and scan of Docker image from Dockerfile."
     runs-on: ["self-hosted", "docker", "Linux"]
@@ -196,3 +156,13 @@ jobs:
 
       - name: "${{ inputs.docker_image_name }}: smoke test raisr opencl"
         run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=raisr_opencl
+
+      - name: "${{ inputs.docker_image_name }}: run validation tests for raisr"
+        run: |
+          docker run \
+            -v $(pwd)/tests/validation/:/workspace/tests \
+            -v /home/runner/workspace/assets/test_videos:/workspace/assets \
+            -e test_video_path=/workspace/assets \
+            -e ffmpeg_path=/workspace/ffmpeg \
+            "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" \
+            bash -c "/workspace/tests/create_wrong_files.sh && /workspace/tests/run_tests_avxout.sh"

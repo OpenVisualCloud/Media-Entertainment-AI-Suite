@@ -4,7 +4,7 @@
 # Copyright 2024-2025 Intel Corporation
 
 SCRIPT_DIR="$(readlink -f "$(dirname -- "${BASH_SOURCE[0]}")")"
-REPO_DIR="$(readlink -f "${SCRIPT_DIR}/../..")"
+REPO_DIR="$(readlink -f "/workspace/raisr")"
 
 ffmpeg_path="${ffmpeg_path:-${REPO_DIR}/raisr/ffmpeg}"
 out_filters=(filters_badNums  filters_wrongConfig filters_noPathes)
