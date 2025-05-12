@@ -25,7 +25,7 @@ jobs:
     name: "docker build: build image"
     uses: ./.github/workflows/build_docker_tpl.yml
     permissions:
-      contents: read
+      contents: write
       packages: write
       security-events: write
     with:

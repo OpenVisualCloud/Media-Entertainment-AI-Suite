@@ -73,7 +73,7 @@ jobs:
     name: "${{ inputs.docker_image_name }}: Performing build and scan of Docker image from Dockerfile."
     runs-on: ["self-hosted", "docker", "Linux"]
     permissions:
-      contents: read
+      contents: write
       packages: write
       security-events: write
     timeout-minutes: 240
@@ -153,20 +153,20 @@ jobs:
           retention-days: 7
 
       - name: "${{ inputs.docker_image_name }}: smoke test iVSR"
-        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=dnn_processing
+        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" -help filter=dnn_processing
 
       - name: "${{ inputs.docker_image_name }}: smoke test raisr"
-        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=raisr
+        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" -help filter=raisr
 
       - name: "${{ inputs.docker_image_name }}: smoke test raisr opencl"
-        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" ./ffmpeg/ffmpeg -help filter=raisr_opencl
+        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" -help filter=raisr_opencl
 
       - name: "${{ inputs.docker_image_name }}: run validation tests for raisr"
         run: |
           docker run -u 0:0 --entrypoint=/bin/bash \
-            -v $(pwd)/tests/validation/:/workspace/tests \
-            -v /home/runner/workspace/assets/test_videos:/workspace/assets \
-            -e test_video_path=/workspace/assets \
-            -e ffmpeg_path=/workspace/ffmpeg \
+            -v "$(pwd)/tests/validation/":/opt/intel_ai_suite/tests \
+            -v /home/runner/workspace/assets/test_videos:/opt/intel_ai_suite/assets \
+            -e test_video_path=/opt/intel_ai_suite/assets \
+            -e ffmpeg_path=/opt/intel_ai_suite \
             "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" \
-            -c "/workspace/tests/create_wrong_files.sh && /workspace/tests/run_tests_avxout.sh"
+            -c "/opt/intel_ai_suite/tests/create_wrong_files.sh && /opt/intel_ai_suite/tests/run_tests_avxout.sh"
