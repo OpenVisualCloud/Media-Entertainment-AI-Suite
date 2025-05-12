@@ -66,13 +66,16 @@ env:
   DOCKER_IMAGE_TAG: "${{ inputs.docker_image_tag || github.sha }}"
   DOCKER_IMAGE_NAME: "${{ inputs.docker_image_name }}"
   DOCKER_FILE_PATH: "${{ inputs.docker_file_path }}"
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build-and-scan-docker-image:
     name: "${{ inputs.docker_image_name }}: Performing build and scan of Docker image from Dockerfile."
     runs-on: ["self-hosted", "docker", "Linux"]
     permissions:
-      contents: write
+      contents: read
+      packages: write
+      security-events: write
     timeout-minutes: 240
     steps:
       - name: "${{ inputs.docker_image_name }}: Harden Runner"
@@ -92,7 +95,7 @@ jobs:
         continue-on-error: true
         with:
           registry: "${{ env.DOCKER_REGISTRY }}"
-          username: "${{ secrets.docker_registry_login   || env.GITHUB_ACTOR }}"
+          username: "${{ secrets.docker_registry_login   || github.repository_owner }}"
           password: "${{ secrets.docker_registry_passkey || secrets.GITHUB_TOKEN }}"
 
       - name: "${{ inputs.docker_image_name }}: Build and push image"

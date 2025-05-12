@@ -25,7 +25,8 @@ jobs:
     name: "docker build: build image"
     uses: ./.github/workflows/build_docker_tpl.yml
     permissions:
-      contents: write
+      contents: read
+      packages: write
       security-events: write
     with:
       docker_registry: "ghcr.io"
@@ -34,7 +35,4 @@ jobs:
       docker_image_name: "ivsr_raisr"
       docker_image_tag: "${{ github.sha }}"
       docker_registry_login: true
-      docker_registry_push: false
-    secrets:
-      docker_registry_login: "${{ secrets.DOCKER_REGISTRY_LOGIN }}"
-      docker_registry_passkey: "${{ secrets.DOCKER_REGISTRY_PASSKEY }}"
+      docker_registry_push: true
