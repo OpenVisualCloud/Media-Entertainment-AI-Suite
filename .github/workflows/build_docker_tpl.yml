@@ -103,6 +103,7 @@ jobs:
           platforms: "${{ env.DOCKER_PLATFORMS }}"
           file: "${{ env.DOCKER_FILE_PATH }}"
           tags: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
+          target: runtime
           cache-from: type=gha,scope=${{ env.DOCKER_IMAGE_NAME }}
           cache-to: type=gha,mode=max,scope=${{ env.DOCKER_IMAGE_NAME }}
           build-args: "${{ env.DOCKER_BUILD_ARGS }}"
@@ -159,10 +160,10 @@ jobs:
 
       - name: "${{ inputs.docker_image_name }}: run validation tests for raisr"
         run: |
-          docker run \
+          docker run -u 0:0 --entrypoint=/bin/bash \
             -v $(pwd)/tests/validation/:/workspace/tests \
             -v /home/runner/workspace/assets/test_videos:/workspace/assets \
             -e test_video_path=/workspace/assets \
             -e ffmpeg_path=/workspace/ffmpeg \
             "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" \
-            bash -c "/workspace/tests/create_wrong_files.sh && /workspace/tests/run_tests_avxout.sh"
+            -c "/workspace/tests/create_wrong_files.sh && /workspace/tests/run_tests_avxout.sh"

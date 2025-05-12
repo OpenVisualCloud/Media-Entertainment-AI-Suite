@@ -194,4 +194,5 @@ for file in ${ffmpeg_path}/test_logs/*; do
     error=1
   fi
 done
-return "${error}"
+
+exit "${error}"

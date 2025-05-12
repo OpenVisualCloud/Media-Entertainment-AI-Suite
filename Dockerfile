@@ -353,6 +353,7 @@ RUN git -C "${FFMPEG_DIR}" am "${FFMPEG_DIR}/0001-Upgrade-Raisr-ffmpeg-plugin-to
     cp -r "${RAISR_DIR}/filters_2x" /filters_2x && \
     cp -r "${RAISR_DIR}/filters_1.5x" /filters_1.5x
 
+ARG PREFIX="/install"
 RUN if [ -f "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ]; then \
       . "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ; \
     fi && \
@@ -360,8 +361,9 @@ RUN if [ -f "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ]; then \
     ./configure \
     --extra-cflags=-fopenmp \
     --extra-ldflags=-fopenmp \
+    --disable-shared \
     --enable-libivsr \
-    --disable-static \
+    --enable-static \
     --disable-doc \
     --enable-shared \
     --enable-vaapi \
@@ -372,20 +374,88 @@ RUN if [ -f "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ]; then \
     --enable-libipp \
     --enable-opencl \
     --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
-    --enable-cross-compile && \
+    --enable-cross-compile \
+    --prefix="${PREFIX}" && \
     make -j "$(nproc)" && \
     make install
 
-WORKDIR ${WORKSPACE}
+WORKDIR ${PREFIX}
+RUN mkdir -p "${PREFIX}/usr/lib" "${PREFIX}/usr/local" && \
+    LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PREFIX}/lib" "${PREFIX}/bin/ffmpeg" -buildconf && \
+    LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PREFIX}/lib" ldd "${PREFIX}/bin/ffmpeg" | cut -d ' ' -f 3 | xargs -i cp {} "${PREFIX}/usr/lib" && \
+    LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib:${PREFIX}/usr/lib" "${PREFIX}/bin/ffmpeg" -buildconf && \
+    mv "${PREFIX}/bin" "${PREFIX}/usr/bin" && \
+    mv "${PREFIX}/lib" "${PREFIX}/usr/local/"
 
-# Create one non-root user, group and owner of WORSPACE
-RUN groupadd -g 2110 vfio && \
+FROM ubuntu:22.04@sha256:67cadaff1dca187079fce41360d5a7eb6f7dcd3745e53c79ad5efd8563118240 AS runtime
+
+LABEL org.opencontainers.image.authors="jerry.dong@intel.com,xiaoxia.liang@intel.com,milosz.linkiewicz@intel.com"
+LABEL org.opencontainers.image.url="https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite"
+LABEL org.opencontainers.image.title="Intel® Media & Entertainment AI Suite"
+LABEL org.opencontainers.image.description="Intel® Media & Entertainment AI Suite with OpenCL for RAISR (Rapid and Accurate Image Super Resolution) and iVCR, as FFmpeg plugin. Ubuntu 22.04 Docker image."
+LABEL org.opencontainers.image.documentation="https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite/blob/main/README.md"
+LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.vendor="Intel® Corporation"
+LABEL org.opencontainers.image.licenses="BSD 3-Clause License"
+
+ENV LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib:/usr/local/lib:/usr/local/lib64:/usr/lib"
+ENV LIBVA_DRIVERS_PATH=/usr/local/lib/dri
+ARG OV_VERSION="2024.5"
+
+SHELL ["/bin/bash", "-ex", "-o", "pipefail", "-c"]
+
+WORKDIR /opt/intel_ai_suite
+RUN apt-get update --fix-missing && \
+    apt-get full-upgrade -y && \
+    apt-get install --no-install-recommends -y \
+      sudo \
+      curl \
+      ca-certificates \
+      gpg \
+      libx264-1* \
+      libx265-1* \
+      unzip \
+      libpcre3 \
+      libpcre3-dev \
+      libssl-dev \
+      gcc \
+      zlib1g-dev \
+      make && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -g 2110 vfio && \
     groupadd -g 13000 ivsr && \
     useradd -m -s /bin/bash -G vfio -g ivsr -u 13000 ivsr && \
     usermod -aG sudo ivsr && \
-    chown -R ivsr:ivsr "${WORKSPACE}"
+    passwd -d ivsr
 
-# Switch to ivsr
-USER ivsr
+RUN curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
+    curl -fsSL https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor | tee /usr/share/keyrings/intel-graphics-archive-keyring.gpg > /dev/null && \
+    echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" > /etc/apt/sources.list.d/intel-oneAPI.list && \
+    echo "deb [signed-by=/usr/share/keyrings/intel-graphics-archive-keyring.gpg arch=amd64] https://repositories.intel.com/graphics/ubuntu jammy flex" > /etc/apt/sources.list.d/intel-graphics.list && \
+    apt-get update --fix-missing && \
+    apt-get install --no-install-recommends -y \
+      intel-opencl-icd \
+      intel-level-zero-gpu \
+      intel-oneapi-ipp-2021.12 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-CMD ["/bin/bash"]
+COPY --from=build --chown=ivsr:ivsr /install /
+COPY --from=build --chown=ivsr:ivsr /workspace/ivsr/ivsr_ov/based_on_openvino_${OV_VERSION}/openvino/install/runtime/3rdparty/tbb/lib/* /usr/local/lib
+COPY --from=build --chown=ivsr:ivsr /workspace/ivsr/ivsr_ov/based_on_openvino_${OV_VERSION}/openvino/install/runtime/lib/intel64/* /usr/local/lib
+COPY --from=build --chown=ivsr:ivsr /workspace/opencv-4.5.3-openvino-2021.4.2/install/lib/* /usr/local/lib
+COPY --from=build --chown=ivsr:ivsr /workspace/opencv-4.5.3-openvino-2021.4.2/install/bin/* /usr/local/lib
+COPY --from=build --chown=ivsr:ivsr /workspace/raisr/filters_1.5x /filters_1.5x
+COPY --from=build --chown=ivsr:ivsr /workspace/raisr/filters_2x /filters_2x
+
+RUN ln -s /usr/bin/ffmpeg /opt/intel_ai_suite/ffmpeg && \
+    ldconfig  && \
+    ffmpeg -buildconf && \
+    ffmpeg -h filter=raisr
+
+USER "ivsr"
+
+SHELL [ "/bin/bash", "-c" ]
+ENTRYPOINT [ "/opt/intel_ai_suite/ffmpeg" ]
+HEALTHCHECK --interval=30s --timeout=5s CMD ps aux | grep "ffmpeg" || exit 1
