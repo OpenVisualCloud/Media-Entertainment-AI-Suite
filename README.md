@@ -20,9 +20,10 @@ The libraries are also available as part of the [Intel® Edge AI Suites](https:/
 
 ### Key Features
 - **Video Super Resolution:** Includes support for four pre-trained models, optimized for best performance on Intel® Xeon™ CPUs and Intel® Datacenter GPU hardware.
-  - **Enhanced RAISR** – Optimized C/C++ implementation of the [Rapid and Accurate Image Super Resolution (RAISR)](https://arxiv.org/abs/1606.01299) [(PDF)](https://arxiv.org/pdf/1606.01299.pdf) algorithm, with pre-trained filters to support 1.5 and 2x up-scaling, with options for low-res, high-res, and denoising. 
+  - **Enhanced RAISR** – Optimized C/C++ implementation of the [Rapid and Accurate Image Super Resolution (RAISR)](https://arxiv.org/abs/1606.01299) [(PDF)](https://arxiv.org/pdf/1606.01299.pdf) algorithm, with pre-trained filters to support 1.5 and 2x up-scaling, with options for low-res, high-res, and denoising.
   Details of this algorithm can be found in our joint paper with AWS presented at [Mile High Video 2024](https://dl.acm.org/doi/10.1145/3638036.3640290).
-  - **TSENet** (Temporally Stabilized ETDS Network) – Optimized implementation of the [ETDS](https://github.com/ECNUSR/ETDS) algorithm for 2x up-scaling, with enhancements for multi-frame temporal stabilization. Details of this algorithm can be found in our papers presented at Mile High Video 2025, and at the [NAB 2025 BEIT](https://nabpilot.org/product/tsenet-video-super-resolution-for-broadcast-television/) conference.
+  - **TSENet** (Temporally Stabilized ETDS Network) – Optimized implementation of the [ETDS](https://github.com/ECNUSR/ETDS) algorithm for 2x up-scaling, with enhancements for multi-frame temporal stabilization.\
+  Details of this algorithm can be found in our papers presented at Mile High Video 2025, and at the [NAB 2025 BEIT](https://nabpilot.org/product/tsenet-video-super-resolution-for-broadcast-television/) conference.
   - **Enhanced EDSR** – Optimized implementation of the [EDSR](https://arxiv.org/pdf/1707.02921) [(PDF)](https://arxiv.org/pdf/1707.02921.pdf) algorithm for 2x up-scaling, using OpenVINO.
   - **Enhanced BasicVSR** – Optimized implementation of the [BasicVSR](https://arxiv.org/abs/2012.02181) [(PDF)](https://arxiv.org/pdf/2012.02181.pdf) algorithm for 2x up-scaling, using OpenVINO.
 - **Video Bit Rate Optimization** (Smart Video Processing aka "**SVP**"): This pre-processor works with any standard codec (HEVC, AVC, and AV1) to reduce the video bit-rate of the encoder output without impacting video quality (as measured by VMAF metrics).
