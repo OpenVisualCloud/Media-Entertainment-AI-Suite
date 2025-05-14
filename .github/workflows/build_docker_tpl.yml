@@ -106,7 +106,7 @@ jobs:
           platforms: "${{ env.DOCKER_PLATFORMS }}"
           file: "${{ env.DOCKER_FILE_PATH }}"
           tags: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
-          target: runtime
+          target: runtime-stage
           cache-from: type=gha,scope=${{ env.DOCKER_IMAGE_NAME }}
           cache-to: type=gha,mode=max,scope=${{ env.DOCKER_IMAGE_NAME }}
           build-args: "${{ env.DOCKER_BUILD_ARGS }}"
