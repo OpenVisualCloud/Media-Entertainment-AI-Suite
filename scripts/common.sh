@@ -107,8 +107,8 @@ function get_basename() {
 }
 
 # Extracts namespace and repository part from valid GitHub URL passed as argument.
-#  input: valid GitHub repository URL
-# output: two element string array, space separated
+#  input: valid GitHub repository URL (example.: https://myuser:mypassword@github.com/NAMESPACE/REPOSITORY/archive/5b8438fbd66ca39fb9d51a3da8b12083f94cb223)
+# output: "NAMESPACE" and "REPOSITORY" elements from given URL, space separated.
 function get_github_elements() {
     local path_part
     local path_elements
@@ -120,13 +120,17 @@ function get_github_elements() {
     fi
     echo "${path_elements[0]} ${path_elements[1]}"
 }
-
+# output: "NAMESPACE" element from URL
 function get_github_namespace() {
     cut -d' ' -f1 <<< "$(get_github_elements "$1")"
 }
-
+# output: "REPOSITORY" element from URL
 function get_github_repo() {
     cut -d' ' -f2 <<< "$(get_github_elements "$1")"
+}
+# output: "NAMESPACE/REPOSITORY" element from URL
+function get_github_full_namespace() {
+    sed 's/\ /\//g' <<< "$(get_github_elements "$1")"
 }
 
 # Adds sufix to base of filename from full path.
@@ -364,6 +368,24 @@ function git_download_strip_unpack()
     curl -Lf "https://${creds}github.com/${name}/archive/${version}.tar.gz" -o "${dest_dir}/${filename}.tar.gz"
     tar -zx --strip-components=1 -C "${dest_dir}" -f "${dest_dir}/${filename}.tar.gz"
     rm -f "${dest_dir}/${filename}.tar.gz"
+}
+
+# Env variable for credentials: GITHUB_CREDENTIALS="username:password"
+# Parameters passed for download definition
+# $1 - repository link
+# $2 - version commit sha or tag in form of refs/tags/MY_TAG_NAME
+#      version=d2515b90cc0ef651f6d0a6661d5a644490bfc3f3
+#      version=refs/tags/v1.2.3
+# $3 - destination director
+function git_repo_download_strip_unpack()
+{
+    if [[ "$#" == "3" ]]; then
+      namespace="$(get_github_full_namespace "${1}")"
+      git_download_strip_unpack "${namespace}" "${2}" "${3}"
+      return "$?"
+    fi
+    log_error "git_repo_download_strip_unpack require 3 arguments, but $# were given."
+    return 1
 }
 
 # Downloads and strip unpack a file from URL ($1) to a target directory ($2)
