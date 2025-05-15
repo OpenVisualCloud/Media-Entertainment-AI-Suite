@@ -29,15 +29,18 @@ The libraries are also available as part of the [Intel® Edge AI Suites](https:/
 - **Video Bit Rate Optimization** (Smart Video Processing aka "**SVP**"): This pre-processor works with any standard codec (HEVC, AVC, and AV1) to reduce the video bit-rate of the encoder output without impacting video quality (as measured by VMAF metrics).
 - **Hardware Platforms Supported** – All VSR and SVP models are optimized for Intel® Xeon™ CPUs and Intel® Datacenter GPUs, and take advantage of support for real-time processing and acceleration through Intel® Advanced Vector Extensions (Intel® AVX) and Intel® Advanced Matrix Extensions (Intel® AMX).
 
-  | Algorithm | Processor Families<sup>[1] | CPU Instruction Sets | Intel GPU Support |
-  |-----------|--------------------|----------------------|-------------------|
-  | Enhanced RAISR | 3rd Gen Intel® Xeon™ Scalable (Ice Lake)<br>4th Gen Intel Xeon Scalable (recommended) and later | Intel® AVX (AVX2, AVX512, and AVX512FP16) | Flex 170 |
+  | Algorithm | Processor Families [^1] | CPU Instruction Sets | Intel GPU Support |
+  |:-----------:|:--------------------|:----------------------|:-------------------:|
+  | Enhanced RAISR | 3rd Gen Intel® Xeon™ Scalable (Ice Lake)<br>4th Gen Intel Xeon Scalable (recommended) and later | Intel® 64 AVX [^2]<br>AVX, AVX2, AVX-512 [^3], AVX-512 FP16 [^4] | Flex 170 |
   | TSENet | 4th Gen Intel Xeon Scalable and later |Intel® AMX (FP16) | Flex 170<br>ARC770 |
   | Enhanced EDSR |4th Gen Intel® Xeon™ Scalable and later |Intel® AMX (FP32 and INT8) | Flex 170<br>ARC770 |
   | Enhanced Basic VSR| 4th Gen Intel Xeon Scalable and later | Intel AMX (FP32) | Flex 170<br>ARC770 |
   | SVP | 4th Gen Intel Xeon Scalable and later | Intel AMX (FP16 and INT8) | Flex 170<br>ARC770 |
 
-  [1]: In general, the VSR and SVP models will run on other Intel processors that support the instruction set extensions listed. However, caveat emptor applies, as the models, pipelines and plugins have not been specifically tested or validated on processors except those listed here.
+  [^1]: In general, the VSR and SVP models will run on other Intel processors that support the instruction set extensions listed. However, caveat emptor applies, as the models, pipelines and plugins have not been specifically tested or validated on processors except those listed here.
+  [^2]: Intel® 64 AVX:  Intel® x86-64 v4, Advanced Vector Extensions instruction set.
+  [^3]: Intel® AVX-512: Intel® Advanced Vector Extensions 512.
+  [^4]: Intel® AVX-512 FP16: ISA for handling half precision floating-point, added as an extension to Intel AVX-512.
 
 - Supported Video Formats – All VSR and SVP models support output formats up to 4K, including support for 8 and 10 bit data.
 
