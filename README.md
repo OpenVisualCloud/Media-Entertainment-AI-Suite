@@ -8,7 +8,59 @@
 > [!TIP]
 > [Full Documentation](https://openvisualcloud.github.io/Media-Entertainment-AI-Suite) for [Intel®](https://intel.com) [Media & Entertainment AI Suite](https://openvisualcloud.github.io/Media-Entertainment-AI-Suite).
 
-The main goal of developing AI Suites is to facilitate customer evaluation. The current Media Entertainment AI Suite include video super-resolution and smart video preprocessing. For video super-resolution, both iVSR and RAISR envoriment are supported. Users can choose models IVSR supported or RAISR to do video super-resolution.
+## Introduction
+The Media and Entertainment AI Suite is a cloud-native suite of docker containers, reference pipelines, libraries and pre-trained models that are designed to enhance video quality, improve user experience and lower costs for video service providers, such as broadcasters, video streamers, and social media service providers.
+These suites leverage Intel's AI libraries and frameworks, such as the Enterprise AI Framework and OpenVINO™, to deliver high-value media enhancement use cases.
+Key workloads supported include:
+- Video Super Resolution (VSR): Supports real-time or batch up-scaling of content from older pre-HD formats to HD and 4K, including support for 8-bit and 10-bit content. VSR is available through a range of different up-scaling models, providing a trade-off between video quality and run-time performance.
+- Video Bit Rate Optimization (SVP): Reduces video bit rate without compromising video quality, and is compatible with standard CODECs such as AVC, HEVC and AV1. Helps to reduce costs through lower transmission and storage requirements.
+
+The libraries included in the suite are supported on both Intel® Xeon™ CPUs and Intel® Data Center GPUs, and can be easily integrated into existing workflows using FFmpeg plugins provided as part of the libraries.
+The libraries are also available as part of the [Intel® Edge AI Suites](https://github.com/open-edge-platform/edge-ai-suites) platform, the [Intel® Tiber™ Broadcast Suite](https://github.com/OpenVisualCloud/Intel-Tiber-Broadcast-Suite), and the [Open Visual Cloud project](https://github.com/OpenVisualCloud/Intel-Tiber-Broadcast-Suite).
+
+### Key Features
+- **Video Super Resolution:** Includes support for four pre-trained models, optimized for best performance on Intel® Xeon™ CPUs and Intel® Datacenter GPU hardware.
+  - **Enhanced RAISR** – Optimized C/C++ implementation of the [Rapid and Accurate Image Super Resolution (RAISR)](https://arxiv.org/abs/1606.01299) [(PDF)](https://arxiv.org/pdf/1606.01299.pdf) algorithm, with pre-trained filters to support 1.5 and 2x up-scaling, with options for low-res, high-res, and denoising.
+  Details of this algorithm can be found in our joint paper with AWS presented at [Mile High Video 2024](https://dl.acm.org/doi/10.1145/3638036.3640290).
+  - **TSENet** (Temporally Stabilized ETDS Network) – Optimized implementation of the [ETDS](https://github.com/ECNUSR/ETDS) algorithm for 2x up-scaling, with enhancements for multi-frame temporal stabilization.\
+  Details of this algorithm can be found in our papers presented at Mile High Video 2025, and at the [NAB 2025 BEIT](https://nabpilot.org/product/tsenet-video-super-resolution-for-broadcast-television/) conference.
+  - **Enhanced EDSR** – Optimized implementation of the [EDSR](https://arxiv.org/pdf/1707.02921) [(PDF)](https://arxiv.org/pdf/1707.02921.pdf) algorithm for 2x up-scaling, using OpenVINO.
+  - **Enhanced BasicVSR** – Optimized implementation of the [BasicVSR](https://arxiv.org/abs/2012.02181) [(PDF)](https://arxiv.org/pdf/2012.02181.pdf) algorithm for 2x up-scaling, using OpenVINO.
+- **Video Bit Rate Optimization** (Smart Video Processing aka "**SVP**"): This pre-processor works with any standard codec (HEVC, AVC, and AV1) to reduce the video bit-rate of the encoder output without impacting video quality (as measured by VMAF metrics).
+- **Hardware Platforms Supported** – All VSR and SVP models are optimized for Intel® Xeon™ CPUs and Intel® Datacenter GPUs, and take advantage of support for real-time processing and acceleration through Intel® Advanced Vector Extensions (Intel® AVX) and Intel® Advanced Matrix Extensions (Intel® AMX).
+
+  | Algorithm | Processor Families [^1] | CPU Instruction Sets | Intel GPU Support |
+  |:-----------:|:--------------------|:----------------------|:-------------------:|
+  | Enhanced RAISR | 3rd Gen Intel® Xeon™ Scalable (Ice Lake)<br>4th Gen Intel Xeon Scalable (recommended) and later | Intel® 64 AVX [^2]<br>AVX, AVX2, AVX-512 [^3], AVX-512 FP16 [^4] | Flex 170 |
+  | TSENet | 4th Gen Intel Xeon Scalable and later |Intel® AMX (FP16) | Flex 170<br>ARC770 |
+  | Enhanced EDSR |4th Gen Intel® Xeon™ Scalable and later |Intel® AMX (FP32 and INT8) | Flex 170<br>ARC770 |
+  | Enhanced Basic VSR| 4th Gen Intel Xeon Scalable and later | Intel AMX (FP32) | Flex 170<br>ARC770 |
+  | SVP | 4th Gen Intel Xeon Scalable and later | Intel AMX (FP16 and INT8) | Flex 170<br>ARC770 |
+
+  [^1]: In general, the VSR and SVP models will run on other Intel processors that support the instruction set extensions listed. However, caveat emptor applies, as the models, pipelines and plugins have not been specifically tested or validated on processors except those listed here.
+  [^2]: Intel® 64 AVX:  Intel® x86-64 v4, Advanced Vector Extensions instruction set.
+  [^3]: Intel® AVX-512: Intel® Advanced Vector Extensions 512.
+  [^4]: Intel® AVX-512 FP16: ISA for handling half precision floating-point, added as an extension to Intel AVX-512.
+
+- Supported Video Formats – All VSR and SVP models support output formats up to 4K, including support for 8 and 10 bit data.
+
+  | Algorithm | Output Resolutions | Output Formats |
+  |-----------|--------------------|----------------|
+  | Enhanced RAISR | All resolutions up to 4K<br>1.5x and 2.0x up-scaling supported | 8-bit<br>10-bit (4:2:0, 4:2:2, and 4:4:4) |
+  | TSENet | All resolutions up to 4K	| 8-bit |
+  | Enhanced EDSR	| All resolutions up to 4K | 8-bit<br>10=bit (pre-release) |
+  | SVP	| All resolutions up to 4K | 8-bit<br>10-bit |
+
+- **FFmpeg Plug-in API** – All VSR and SVP models are supported by plug-ins that integrate the algorithms as FFmpeg filters.
+  - **Enhanced RAISR** is supported by its own plugin, which is located in the [Intel® Library for Super Resolution](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library) repository.
+  - The **iVSR** plugin is provided in the [iVSR](https://github.com/OpenVisualCloud/iVSR) project repository, and supports all other VSR models and SVP. The iVSR API can also be used to integrate custom DL-based VSR and preprocessor models into FFmpeg.
+
+### Value Proposition for End Users:
+- Broadcasters: Lower cost production of 4K broadcasts by using HD cameras, sources, and networking, with real-time up-scaling to 4K as the final step before the broadcast/streaming feed.
+- Video Streaming Providers: Monetization of older and lower quality content by converting to modern HD and 4K formats.
+- Social Media Providers: Improved user experience and satisfaction from higher resolution content.
+- Cloud Service Providers: Faster deployment through pre-trained AI models and pre-configured containers, integrating seamlessly with cloud and edge infrastructure for flexible deployment.
+
 
 ## Installing
 
