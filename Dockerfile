@@ -1,103 +1,91 @@
+# syntax=docker/dockerfile:1
 
-# SPDX-License-Identifier: BSD 3-Clause License
-#
-# Copyright (c) 2025, Intel Corporation
-# All rights reserved.
-#
-# Redistribution and use in source and binary forms, with or without
-# modification, are permitted provided that the following conditions are met:
-#
-# * Redistributions of source code must retain the above copyright notice, this
-#   list of conditions and the following disclaimer.
-#
-# * Redistributions in binary form must reproduce the above copyright notice,
-#   this list of conditions and the following disclaimer in the documentation
-#   and/or other materials provided with the distribution.
-#
-# * Neither the name of the copyright holder nor the names of its
-#   contributors may be used to endorse or promote products derived from
-#   this software without specific prior written permission.
-#
-# THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-# AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-# IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-# DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-# FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-# DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-# SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-# CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-# OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-# OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+# Copyright (c) 2025 Intel Corporation.
+# SPDX-License-Identifier: BSD-3-Clause
 
-ARG IMAGE=ubuntu:22.04
-FROM $IMAGE AS base
+ARG IMAGE_CACHE_REGISTRY=docker.io
+FROM "${IMAGE_CACHE_REGISTRY}/library/ubuntu:22.04@sha256:67cadaff1dca187079fce41360d5a7eb6f7dcd3745e53c79ad5efd8563118240" AS build-stage
 
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV WORKSPACE="/workspace"
+# For use with DESTDIR=${INSTALL_PREFIX} make install
+ENV INSTALL_PREFIX="/install"
+
+ARG PYTHON=python3.10
+ARG ENABLE_OV_PATCH="false"
+ARG OV_VERSION="2024.5"
+ARG IVSR_REPO="https://github.com/OpenVisualCloud/iVSR"
+ARG IVSR_VERSION="v25.03"
+ARG OPENCV_REPO="https://github.com/opencv/opencv"
+ARG OPENCV_VERSION="4.5.3-openvino-2021.4.2"
+ARG OV_REPO=https://github.com/openvinotoolkit/openvino.git
+ARG OV_BRANCH="${OV_VERSION}.0"
+ARG RAISR_REPO="https://github.com/OpenVisualCloud/Video-Super-Resolution-Library"
+ARG RAISR_BRANCH="v23.11.1"
+ARG FFMPEG_REPO="https://github.com/FFmpeg/FFmpeg"
+ARG FFMPEG_VERSION="n7.1"
+
+ENV IVSR_DIR="${WORKSPACE}/ivsr"
+ENV OPENCV_DIR="${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2"
+ENV BASED_ON_OPENVINO_DIR="${IVSR_DIR}/ivsr_ov/based_on_openvino_${OV_VERSION}"
+ENV IVSR_OV_DIR="${BASED_ON_OPENVINO_DIR}/openvino"
+ENV IVSR_SDK_DIR="${IVSR_DIR}/ivsr_sdk"
+ENV RAISR_DIR="${WORKSPACE}/raisr"
+ENV FFMPEG_DIR="${WORKSPACE}/ffmpeg"
+
+COPY scripts/common.sh /opt/intel/common.sh
+COPY patches/* /opt/intel/ffmpeg/patches/
+
 SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+WORKDIR "${WORKSPACE}"
+RUN apt-get update --fix-missing && \
+    apt-get full-upgrade -y && \
+    apt-get install --no-install-recommends -y \
       curl \
       ca-certificates \
       gpg-agent \
-      software-properties-common && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-FROM base AS build
-LABEL vendor="Intel Corporation"
-
-SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
-ARG ENABLE_OV_PATCH="false"
-ARG OV_VERSION="2024.5"
-
-# openvino
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends --fix-missing \
+      software-properties-common \
       apt-utils \
-      ca-certificates \
-      curl \
-      cmake \
       cython3 \
       flex \
       bison \
-      gcc \
-      g++ \
-      git \
-      make \
       patch \
-      pkg-config && \
+      cmake \
+      nasm \
+      build-essential \
+      pkg-config \
+      less \
+      yasm && \
+    curl -fsSL "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB" | gpg --dearmor > "/usr/share/keyrings/intel-oneapi.gpg" && \
+    curl -fsSL "https://repositories.intel.com/graphics/intel-graphics.key" | gpg --dearmor > "/usr/share/keyrings/intel-gpu.gpg" && \
+    echo "deb [signed-by=/usr/share/keyrings/intel-oneapi.gpg] https://apt.repos.intel.com/oneapi all main" > /etc/apt/sources.list.d/intel-oneAPI.list && \
+    echo "deb [signed-by=/usr/share/keyrings/intel-gpu.gpg arch=amd64] https://repositories.intel.com/graphics/ubuntu jammy flex" > /etc/apt/sources.list.d/intel-graphics.list && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf intel-graphics.key /var/lib/apt/lists/*
 
-RUN curl -Lf "https://repositories.intel.com/graphics/intel-graphics.key" -o "intel-graphics.key" && \
-    gpg --dearmor --output "/usr/share/keyrings/intel-graphics.gpg" "intel-graphics.key"
-RUN echo 'deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu jammy flex' | \
-    tee "/etc/apt/sources.list.d/intel.gpu.jammy.list"
+RUN apt-get update --fix-missing && \
+    apt-get install --no-install-recommends -y \
+      intel-oneapi-ipp-devel-2022.0 \
+      intel-opencl-icd \
+      intel-level-zero-gpu \
+      ocl-icd-opencl-dev \
+      opencl-headers \
+      libdrm-dev \
+      libudev-dev \
+      libtool \
+      vainfo \
+      clinfo && \
+    source /opt/intel/common.sh && \
+    git_repo_download_strip_unpack "${IVSR_REPO}" "refs/tags/${IVSR_VERSION}" "${IVSR_DIR}" && \
+    git_repo_download_strip_unpack "${OPENCV_REPO}" "${OPENCV_VERSION}" "${OPENCV_DIR}" && \
+    apt-get clean && \
+    rm -rf intel-graphics.key /var/lib/apt/lists/*
 
-# clone ivsr repo
-ARG WORKSPACE=/workspace
-ARG IVSR_DIR=${WORKSPACE}/ivsr
-ARG IVSR_REPO=https://github.com/OpenVisualCloud/iVSR.git
-ARG IVSR_VERSION=v25.03
-
-WORKDIR ${IVSR_DIR}
-RUN git clone ${IVSR_REPO} ${IVSR_DIR} && \
-    git checkout ${IVSR_VERSION}
-
-#install opencv
-ARG OPENCV_REPO=https://github.com/opencv/opencv/archive/4.5.3-openvino-2021.4.2.tar.gz
-WORKDIR ${WORKSPACE}
-RUN curl -Lf "${OPENCV_REPO}" -o "4.5.3-openvino-2021.4.2.tar.gz" && \
-    tar xzf "4.5.3-openvino-2021.4.2.tar.gz" && \
-    rm -f "4.5.3-openvino-2021.4.2.tar.gz"
-
-WORKDIR "${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/build"
-RUN mkdir -p "${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install" && \
+WORKDIR "${OPENCV_DIR}/build"
+RUN mkdir -p "${OPENCV_DIR}/install" && \
     cmake \
       -DCMAKE_BUILD_TYPE=Release \
-      -DCMAKE_INSTALL_PREFIX="${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install" \
+      -DCMAKE_INSTALL_PREFIX="${OPENCV_DIR}/install" \
       -DCMAKE_INSTALL_LIBDIR=lib \
       -DOPENCV_GENERATE_PKGCONFIG=ON \
       -DBUILD_DOCS=OFF \
@@ -110,15 +98,15 @@ RUN mkdir -p "${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install" && \
       -DWITH_JASPER=OFF \
       .. && \
     make -j "$(nproc)" && \
-    make install
+    make install -j "$(nproc)" && \
+    DESTDIR=${INSTALL_PREFIX} make install -j "$(nproc)"
 
-WORKDIR ${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install/bin
+WORKDIR "${OPENCV_DIR}/install/bin"
 RUN bash ./setup_vars_opencv4.sh
 
 RUN if [ "$OV_VERSION" = "2022.3" ]; then \
         apt-get update; \
         xargs apt-get install -y --no-install-recommends --fix-missing < ${IVSR_DIR}/ivsr_sdk/dgpu_umd_stable_555_0124.txt; \
-        apt-get install -y --no-install-recommends vainfo clinfo; \
         apt-get clean; \
         rm -rf  /var/lib/apt/lists/*; \
     fi
@@ -127,191 +115,126 @@ WORKDIR /tmp/gpu_deps
 RUN if [ "$OV_VERSION" = "2023.2" ] || [ "$OV_VERSION" = "2024.5" ]; then \
       # for GPU
       apt-get update; \
-      apt-get install -y --no-install-recommends vainfo clinfo; \
       apt-get install -y --no-install-recommends ocl-icd-libopencl1; \
       apt-get clean; \
       rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*; \
     fi
 WORKDIR /tmp/gpu_deps
 RUN if [ "$OV_VERSION" = "2023.2" ]; then \
-      # hadolint ignore=DL3003
-      curl -L -O https://github.com/intel/compute-runtime/releases/download/23.05.25593.11/libigdgmm12_22.3.0_amd64.deb; \
-      curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.13700.14/intel-igc-core_1.0.13700.14_amd64.deb; \
-      curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.13700.14/intel-igc-opencl_1.0.13700.14_amd64.deb; \
-      curl -L -O https://github.com/intel/compute-runtime/releases/download/23.13.26032.30/intel-opencl-icd_23.13.26032.30_amd64.deb; \
+      curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.13700.14/intel-igc-core_1.0.13700.14_amd64.deb && \
+      curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.13700.14/intel-igc-opencl_1.0.13700.14_amd64.deb && \
+      curl -L -O https://github.com/intel/compute-runtime/releases/download/23.13.26032.30/intel-opencl-icd_23.13.26032.30_amd64.deb && \
+      curl -L -O https://github.com/intel/compute-runtime/releases/download/23.13.26032.30/intel-level-zero-gpu_1.3.26032.30_amd64.deb && \
       curl -L -O https://github.com/intel/compute-runtime/releases/download/23.13.26032.30/libigdgmm12_22.3.0_amd64.deb; \
-      dpkg -i ./*.deb && rm -Rf /tmp/gpu_deps; \
-    fi
-
-WORKDIR /tmp/gpu_deps
-RUN if [ "$OV_VERSION" = "2024.5" ]; then \
-      curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17384.11/intel-igc-core_1.0.17384.11_amd64.deb; \
-      curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17384.11/intel-igc-opencl_1.0.17384.11_amd64.deb; \
-      curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/intel-level-zero-gpu-dbgsym_1.3.30508.7_amd64.ddeb; \
-      curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/intel-level-zero-gpu_1.3.30508.7_amd64.deb; \
-      curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/intel-opencl-icd-dbgsym_24.31.30508.7_amd64.ddeb; \
-      curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/intel-opencl-icd_24.31.30508.7_amd64.deb; \
+    fi && \
+    if [ "$OV_VERSION" = "2024.5" ]; then \
+      curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17384.11/intel-igc-core_1.0.17384.11_amd64.deb && \
+      curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17384.11/intel-igc-opencl_1.0.17384.11_amd64.deb && \
+      curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/intel-level-zero-gpu_1.3.30508.7_amd64.deb && \
+      curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/intel-opencl-icd_24.31.30508.7_amd64.deb && \
       curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/libigdgmm12_22.4.1_amd64.deb; \
-      dpkg -i ./*.deb && rm -Rf /tmp/gpu_deps; \
-    fi
+    fi && \
+    dpkg -i *.deb && \
+    rm -rf /tmp/gpu_deps
+
 ENV LD_LIBRARY_PATH=${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install/lib
 ENV OpenCV_DIR=${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2/install/lib/cmake/opencv4
-ARG IVSR_OV_DIR=${IVSR_DIR}/ivsr_ov/based_on_openvino_${OV_VERSION}/openvino
-ARG CUSTOM_OV_INSTALL_DIR=${IVSR_OV_DIR}/install
-ARG IVSR_SDK_DIR=${IVSR_DIR}/ivsr_sdk
-ARG PYTHON=python3.10
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      build-essential \
-      ca-certificates \
-      curl \
-      cmake \
-      cython3 \
-      flex \
-      bison \
-      gcc \
-      g++ \
-      git \
-      libdrm-dev \
-      libudev-dev \
-      libtool \
-      libusb-1.0-0-dev \
-      make \
-      patch \
-      pkg-config \
-      xz-utils \
-      ocl-icd-opencl-dev \
-      opencl-headers && \
     apt-get install -y --no-install-recommends --fix-missing \
-      ${PYTHON} \
-      lib${PYTHON}-dev \
-      python3-pip && \
+      cython3 \
+      git \
+      libusb-1.0-0-dev \
+      xz-utils \
+      "${PYTHON}-dev" \
+      "lib${PYTHON}-dev" \
+      python-is-python3 && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* && \
+    curl -fsSL https://bootstrap.pypa.io/get-pip.py | python && \
+    python -m pip --no-cache-dir install --upgrade pip setuptools
 
-RUN pip --no-cache-dir install --upgrade \
-      pip \
-      setuptools && \
-    ln -sf "$(which "${PYTHON}")" /usr/local/bin/python && \
-    ln -sf "$(which "${PYTHON}")" /usr/local/bin/python3 && \
-    ln -sf "$(which "${PYTHON}")" /usr/bin/python && \
-    ln -sf "$(which "${PYTHON}")" /usr/bin/python3
+WORKDIR "${IVSR_OV_DIR}"
+RUN git clone ${OV_REPO} ${IVSR_OV_DIR} && \
+    git checkout ${OV_BRANCH} && \
+    git submodule update --init --recursive
 
-    ARG OV_REPO=https://github.com/openvinotoolkit/openvino.git
-    ARG OV_BRANCH=${OV_VERSION}.0
-    WORKDIR ${IVSR_OV_DIR}
+RUN if [ "$ENABLE_OV_PATCH" = "true" ] && [ "$OV_VERSION" = "2022.3" ]; then \
+        { set -e; \
+          for patch_file in $(find ../patches -iname "*.patch" | sort -n); do \
+            echo "Applying: ${patch_file}"; \
+            git am --whitespace=fix ${patch_file}; \
+          done; }; \
+    fi
 
-    RUN git config --global user.email "noname@example.com" && \
-        git config --global user.name "no name" && \
-        git clone ${OV_REPO} ${IVSR_OV_DIR} && \
-        git checkout ${OV_BRANCH} && \
-        git submodule update --init --recursive
+WORKDIR "${BASED_ON_OPENVINO_DIR}"
+RUN mkdir -p "${IVSR_OV_DIR}/build" && \
+    cmake \
+      -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+      -DENABLE_INTEL_CPU=ON \
+      -DENABLE_CLDNN=ON \
+      -DENABLE_INTEL_GPU=ON \
+      -DENABLE_ONEDNN_FOR_GPU=OFF \
+      -DENABLE_INTEL_GNA=OFF \
+      -DENABLE_INTEL_MYRIAD_COMMON=OFF \
+      -DENABLE_INTEL_MYRIAD=OFF \
+      -DENABLE_PYTHON=ON \
+      -DENABLE_OPENCV=ON \
+      -DENABLE_SAMPLES=ON \
+      -DENABLE_CPPLINT=OFF \
+      -DTREAT_WARNING_AS_ERROR=OFF \
+      -DENABLE_TESTS=OFF \
+      -DENABLE_GAPI_TESTS=OFF \
+      -DENABLE_BEH_TESTS=OFF \
+      -DENABLE_FUNCTIONAL_TESTS=OFF \
+      -DENABLE_OV_CORE_UNIT_TESTS=OFF \
+      -DENABLE_OV_CORE_BACKEND_UNIT_TESTS=OFF \
+      -DENABLE_DEBUG_CAPS=ON \
+      -DENABLE_GPU_DEBUG_CAPS=ON \
+      -DENABLE_CPU_DEBUG_CAPS=ON \
+      -DCMAKE_BUILD_TYPE=Release \
+      -B "${IVSR_OV_DIR}/build" -S "${IVSR_OV_DIR}" && \
+    make -j$(nproc) -C ${IVSR_OV_DIR}/build && \
+    make -j$(nproc) -C ${IVSR_OV_DIR}/build install && \
+    rm -rf "${IVSR_OV_DIR}"
 
-    RUN if [ "$ENABLE_OV_PATCH" = "true" ] && [ "$OV_VERSION" = "2022.3" ]; then \
-            { set -e; \
-              for patch_file in $(find ../patches -iname "*.patch" | sort -n); do \
-                echo "Applying: ${patch_file}"; \
-                git am --whitespace=fix ${patch_file}; \
-              done; }; \
-        fi
+ENV CUSTOM_IE_DIR=${INSTALL_PREFIX}/runtime
+ENV OpenVINO_DIR=${CUSTOM_IE_DIR}/cmake
+ENV InferenceEngine_DIR=${CUSTOM_IE_DIR}/cmake
+ENV TBB_DIR=${CUSTOM_IE_DIR}/3rdparty/tbb/cmake
+ENV ngraph_DIR=${CUSTOM_IE_DIR}/cmake
+ENV LD_LIBRARY_PATH=${INSTALL_PREFIX}/lib/:${INSTALL_PREFIX}/runtime/lib/intel64/:${INSTALL_PREFIX}/runtime/3rdparty/tbb/lib:$LD_LIBRARY_PATH
 
-    WORKDIR ${IVSR_DIR}/ivsr_ov/based_on_openvino_${OV_VERSION}
-    RUN mkdir -p openvino/build && \
-        cd openvino/build && \
-        cmake \
-          -DCMAKE_INSTALL_PREFIX="${PWD}/../install" \
-          -DENABLE_INTEL_CPU=ON \
-          -DENABLE_CLDNN=ON \
-          -DENABLE_INTEL_GPU=ON \
-          -DENABLE_ONEDNN_FOR_GPU=OFF \
-          -DENABLE_INTEL_GNA=OFF \
-          -DENABLE_INTEL_MYRIAD_COMMON=OFF \
-          -DENABLE_INTEL_MYRIAD=OFF \
-          -DENABLE_PYTHON=ON \
-          -DENABLE_OPENCV=ON \
-          -DENABLE_SAMPLES=ON \
-          -DENABLE_CPPLINT=OFF \
-          -DTREAT_WARNING_AS_ERROR=OFF \
-          -DENABLE_TESTS=OFF \
-          -DENABLE_GAPI_TESTS=OFF \
-          -DENABLE_BEH_TESTS=OFF \
-          -DENABLE_FUNCTIONAL_TESTS=OFF \
-          -DENABLE_OV_CORE_UNIT_TESTS=OFF \
-          -DENABLE_OV_CORE_BACKEND_UNIT_TESTS=OFF \
-          -DENABLE_DEBUG_CAPS=ON \
-          -DENABLE_GPU_DEBUG_CAPS=ON \
-          -DENABLE_CPU_DEBUG_CAPS=ON \
-          -DCMAKE_BUILD_TYPE=Release \
-          .. && \
-        make -j $(nproc) && \
-        make install && \
-        bash "${PWD}/../install/setupvars.sh" && \
-        install ${IVSR_OV_DIR}/install/runtime/3rdparty/tbb/lib/* /usr/local/lib && \
-        install ${IVSR_OV_DIR}/install/runtime/lib/intel64/* /usr/local/lib && \
-        install /workspace/opencv-4.5.3-openvino-2021.4.2/install/lib/* /usr/local/lib && \
-        install /workspace/opencv-4.5.3-openvino-2021.4.2/install/bin/* /usr/local/bin && \
-        mv "${IVSR_OV_DIR}/install" "/workspace/ivsr_ov-openvino-${OV_VERSION}" && \
-        cd ../.. && \
-        rm -rf "${IVSR_OV_DIR}" || true
+WORKDIR "${RAISR_DIR}"
+RUN cmake \
+      -DENABLE_LOG=OFF \
+      -DENABLE_PERF=OFF \
+      -DENABLE_THREADPROCESS=ON \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
+      -B "${IVSR_SDK_DIR}/build" -S "${IVSR_SDK_DIR}" && \
+    make -j"$(nproc)" -C "${IVSR_SDK_DIR}/build" && \
+    make -j"$(nproc)" -C "${IVSR_SDK_DIR}/build" install
 
-    ARG CUSTOM_IE_DIR=${CUSTOM_OV_INSTALL_DIR}/runtime
-    ARG CUSTOM_IE_LIBDIR=${CUSTOM_IE_DIR}/lib/intel64
-    ARG CUSTOM_OV=${CUSTOM_IE_DIR}
-
-    ENV OpenVINO_DIR=${CUSTOM_IE_DIR}/cmake
-    ENV InferenceEngine_DIR=${CUSTOM_IE_DIR}/cmake
-    ENV TBB_DIR=${CUSTOM_IE_DIR}/3rdparty/tbb/cmake
-    ENV ngraph_DIR=${CUSTOM_IE_DIR}/cmake
-    ENV LD_LIBRARY_PATH=${CUSTOM_IE_DIR}/3rdparty/tbb/lib:${CUSTOM_IE_LIBDIR}:$LD_LIBRARY_PATH
-
-    WORKDIR ${IVSR_SDK_DIR}/build
-    RUN cmake .. \
-          -DENABLE_LOG=OFF -DENABLE_PERF=OFF -DENABLE_THREADPROCESS=ON \
-          -DCMAKE_BUILD_TYPE=Release && \
-        make -j $(nproc) && \
-        make install && \
-        echo "Building vsr sdk finished."
-
-# build raisr
-# install 3rd-party libraries required by raisr and raisr
-WORKDIR ${WORKSPACE}
-RUN curl -Lf "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/7e07b203-af56-4b52-b69d-97680826a8df/l_ipp_oneapi_p_2021.12.1.16_offline.sh" -o "l_ipp_oneapi_p_2021.12.1.16_offline.sh" && \
-    chmod +x ./l_ipp_oneapi_p_2021.12.1.16_offline.sh && \
-    ./l_ipp_oneapi_p_2021.12.1.16_offline.sh -a -s --eula accept && \
-    source  /opt/intel/oneapi/ipp/latest/env/vars.sh && \
-    rm ./l_ipp_oneapi_p_2021.12.1.16_offline.sh
-
-ENV LD_LIBRARY_PATH=/opt/intel/oneapi/ipp/2021.12/lib:${LD_LIBRARY_PATH}
-ENV LIBRARY_PATH=/opt/intel/oneapi/ipp/2021.12/lib
-ENV IPPROOT=/opt/intel/oneapi/ipp/2021.12
-ENV CMAKE_PREFIX_PATH=/opt/intel/oneapi/ipp/2021.12/lib/cmake/ipp
-ARG RAISR_REPO=https://github.com/OpenVisualCloud/Video-Super-Resolution-Library.git
-ARG RAISR_BRANCH=v23.11.1
-ARG RAISR_DIR=${WORKSPACE}/raisr
-
-WORKDIR ${RAISR_DIR}
-RUN git clone ${RAISR_REPO} ${RAISR_DIR} && \
-    git checkout ${RAISR_BRANCH}
-
-RUN  ./build.sh -DENABLE_RAISR_OPENCL=ON
+RUN source /opt/intel/common.sh && \
+    git_repo_download_strip_unpack "${FFMPEG_REPO}" "refs/tags/${FFMPEG_VERSION}" "${FFMPEG_DIR}" && \
+      patch -d "${FFMPEG_DIR}" -p1 < "${IVSR_DIR}/ivsr_ffmpeg_plugin/patches/"*.patch && \
+      patch -d "${FFMPEG_DIR}" -p1 < "/opt/intel/ffmpeg/patches/"* && \
+    git_repo_download_strip_unpack "${RAISR_REPO}" "${RAISR_BRANCH}" "${RAISR_DIR}" && \
+      cp -r "${RAISR_DIR}/filters_2x" "${INSTALL_PREFIX}/filters_2x" && \
+      cp -r "${RAISR_DIR}/filters_1.5x" "${INSTALL_PREFIX}/filters_1.5x" && \
+    ./build.sh -DENABLE_RAISR_OPENCL=ON \
+      -DCMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;" \
+      -DCMAKE_C_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp" \
+      -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp" \
+      -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}"
 
 #build ffmpeg with iVSR SDK backend and raisr
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      ca-certificates \
-      tar \
-      g++ \
-      wget \
-      pkg-config \
-      nasm \
-      yasm \
       libglib2.0-dev \
-      flex \
-      bison \
       gobject-introspection \
       libgirepository1.0-dev \
-      python3-dev \
       libx11-dev \
       libxv-dev \
       libxt-dev \
@@ -327,67 +250,36 @@ RUN apt-get update && \
       libx265-dev \
       libde265-dev \
       libva-dev && \
-    rm -rf /var/lib/apt/lists/*
-ENV LD_LIBRARY_PATH=${IVSR_SDK_DIR}/lib:/usr/local/lib:$LD_LIBRARY_PATH
-ENV C_INCLUDE_PATH="/opt/intel/oneapi/ipp/latest/include/ipp"
+    apt-get clean && \
+    rm -rf intel-graphics.key /var/lib/apt/lists/*
 
-ARG FFMPEG_DIR=${WORKSPACE}/ffmpeg
-
-ARG FFMPEG_REPO=https://github.com/FFmpeg/FFmpeg.git
-ARG FFMPEG_VERSION=n7.1
-WORKDIR ${FFMPEG_DIR}
-RUN git clone ${FFMPEG_REPO} ${FFMPEG_DIR} && \
-    git checkout ${FFMPEG_VERSION}
-
-RUN cp ${IVSR_DIR}/ivsr_ffmpeg_plugin/patches/*.patch ${FFMPEG_DIR}/
-# apply patches of ivsr ffmpeg
-RUN { set -e; \
-  for patch_file in $(find -iname "*.patch" | sort -n); do \
-    echo "Applying: ${patch_file}"; \
-    git am --whitespace=fix ${patch_file}; \
-  done; }
-
-# apply patches of raisr ffmpeg
-COPY ./patches/* ${FFMPEG_DIR}/
-RUN git -C "${FFMPEG_DIR}" am "${FFMPEG_DIR}/0001-Upgrade-Raisr-ffmpeg-plugin-to-n7.1-from-n6.1.1.patch" && \
-    cp -r "${RAISR_DIR}/filters_2x" /filters_2x && \
-    cp -r "${RAISR_DIR}/filters_1.5x" /filters_1.5x
-
-ARG PREFIX="/install"
-RUN if [ -f "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ]; then \
-      . "${CUSTOM_OV_INSTALL_DIR}/setvars.sh" ; \
+WORKDIR "${FFMPEG_DIR}"
+RUN if [ -f "${IVSR_OV_DIR}/install/setvars.sh" ]; then \
+      . "${IVSR_OV_DIR}/install/setvars.sh" ; \
     fi && \
-    export LD_LIBRARY_PATH="${IVSR_SDK_DIR}/lib:${CUSTOM_IE_LIBDIR}:${TBB_DIR}/../lib:${LD_LIBRARY_PATH}" && \
     ./configure \
-    --extra-cflags=-fopenmp \
-    --extra-ldflags=-fopenmp \
-    --disable-shared \
-    --enable-libivsr \
-    --enable-static \
-    --disable-doc \
-    --enable-shared \
-    --enable-vaapi \
-    --enable-gpl \
-    --enable-libx264 \
-    --enable-libx265 \
-    --enable-version3 \
-    --enable-libipp \
-    --enable-opencl \
-    --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
-    --enable-cross-compile \
-    --prefix="${PREFIX}" && \
-    make -j "$(nproc)" && \
-    make install
+      --extra-cflags="-fopenmp -I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp -I${INSTALL_PREFIX}/include" \
+      --extra-ldflags="-fopenmp -L/opt/intel/oneapi/ipp/latest/lib -L${INSTALL_PREFIX}/lib -L${INSTALL_PREFIX}/runtime/lib/intel64 -L${INSTALL_PREFIX}/runtime/3rdparty/tbb/lib" \
+      --disable-shared \
+      --disable-debug  \
+      --disable-doc    \
+      --enable-libivsr \
+      --enable-static \
+      --enable-vaapi \
+      --enable-gpl \
+      --enable-libx264 \
+      --enable-libx265 \
+      --enable-version3 \
+      --enable-libipp \
+      --enable-opencl \
+      --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
+      --enable-cross-compile \
+      --prefix="${INSTALL_PREFIX}" && \
+    make -j"$(nproc)" && \
+    make -j"$(nproc)" install
 
-WORKDIR ${PREFIX}
-RUN mkdir -p "${PREFIX}/usr/lib" "${PREFIX}/usr/local" && \
-    LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PREFIX}/lib" "${PREFIX}/bin/ffmpeg" -buildconf && \
-    LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${PREFIX}/lib" ldd "${PREFIX}/bin/ffmpeg" | cut -d ' ' -f 3 | xargs -i cp {} "${PREFIX}/usr/lib" && \
-    LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib:${PREFIX}/usr/lib" "${PREFIX}/bin/ffmpeg" -buildconf && \
-    mv "${PREFIX}/bin" "${PREFIX}/usr/bin" && \
-    mv "${PREFIX}/lib" "${PREFIX}/usr/local/"
-
-FROM ubuntu:22.04@sha256:67cadaff1dca187079fce41360d5a7eb6f7dcd3745e53c79ad5efd8563118240 AS runtime
+ARG IMAGE_CACHE_REGISTRY
+FROM "${IMAGE_CACHE_REGISTRY}/library/ubuntu:22.04@sha256:67cadaff1dca187079fce41360d5a7eb6f7dcd3745e53c79ad5efd8563118240" AS runtime-stage
 
 LABEL org.opencontainers.image.authors="jerry.dong@intel.com,xiaoxia.liang@intel.com,milosz.linkiewicz@intel.com"
 LABEL org.opencontainers.image.url="https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite"
@@ -398,29 +290,35 @@ LABEL org.opencontainers.image.version="1.0.0"
 LABEL org.opencontainers.image.vendor="Intel® Corporation"
 LABEL org.opencontainers.image.licenses="BSD 3-Clause License"
 
-ENV LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib:/usr/local/lib:/usr/local/lib64:/usr/lib"
-ENV LIBVA_DRIVERS_PATH=/usr/local/lib/dri
-ARG OV_VERSION="2024.5"
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV TZ="Europe/Warsaw"
 
 SHELL ["/bin/bash", "-ex", "-o", "pipefail", "-c"]
-
 WORKDIR /opt/intel_ai_suite
 RUN apt-get update --fix-missing && \
     apt-get full-upgrade -y && \
     apt-get install --no-install-recommends -y \
-      sudo \
-      curl \
       ca-certificates \
+      sudo curl unzip tar less \
       gpg \
       libx264-1* \
       libx265-1* \
-      unzip \
+      libde265-0 \
       libpcre3 \
-      libpcre3-dev \
-      libssl-dev \
-      gcc \
-      zlib1g-dev \
-      make && \
+      zlib1g \
+      libglib2.0 \
+      libx11-6 \
+      libxv1 \
+      libxt6 \
+      libasound2 \
+      libpango1.0-0 \
+      libtheora0 \
+      libvisual-0.4-0 \
+      libgl1-mesa-dri \
+      libcurl4 \
+      librtmp1 \
+      mjpegtools \
+      libva2 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -g 2110 vfio && \
@@ -437,25 +335,29 @@ RUN curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-P
     apt-get install --no-install-recommends -y \
       intel-opencl-icd \
       intel-level-zero-gpu \
-      intel-oneapi-ipp-2021.12 && \
+      intel-oneapi-ipp-2022.0 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=build --chown=ivsr:ivsr /install /
-COPY --from=build --chown=ivsr:ivsr /workspace/ivsr/ivsr_ov/based_on_openvino_${OV_VERSION}/openvino/install/runtime/3rdparty/tbb/lib/* /usr/local/lib
-COPY --from=build --chown=ivsr:ivsr /workspace/ivsr/ivsr_ov/based_on_openvino_${OV_VERSION}/openvino/install/runtime/lib/intel64/* /usr/local/lib
-COPY --from=build --chown=ivsr:ivsr /workspace/opencv-4.5.3-openvino-2021.4.2/install/lib/* /usr/local/lib
-COPY --from=build --chown=ivsr:ivsr /workspace/opencv-4.5.3-openvino-2021.4.2/install/bin/* /usr/local/lib
-COPY --from=build --chown=ivsr:ivsr /workspace/raisr/filters_1.5x /filters_1.5x
-COPY --from=build --chown=ivsr:ivsr /workspace/raisr/filters_2x /filters_2x
+COPY --from=build-stage --chown=ivsr:ivsr /install/bin/ffmpeg /usr/local/bin/
+COPY --from=build-stage --chown=ivsr:ivsr /install/lib/*so /usr/local/lib
+COPY --from=build-stage --chown=ivsr:ivsr /install/runtime/lib/intel64/*so /usr/local/lib
+COPY --from=build-stage --chown=ivsr:ivsr /install/runtime/3rdparty/tbb/lib/*so /usr/local/lib
+COPY --from=build-stage --chown=ivsr:ivsr /install/workspace/opencv-*-openvino-*/install/lib/*so /usr/local/lib
+COPY --from=build-stage --chown=ivsr:ivsr /install/workspace/opencv-*-openvino-*/install/bin/*   /usr/local/bin
+COPY --from=build-stage --chown=ivsr:ivsr /install/filters_1.5x /filters_1.5x
+COPY --from=build-stage --chown=ivsr:ivsr /install/filters_2x   /filters_2x
 
-RUN ln -s /usr/bin/ffmpeg /opt/intel_ai_suite/ffmpeg && \
-    ldconfig  && \
+ENV LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib:/usr/local/lib:/usr/local/lib64:/usr/lib"
+RUN ln -s /usr/local/bin/ffmpeg /opt/intel_ai_suite/ffmpeg && \
+    ldconfig && \
+    echo "------------------===PRE-CHECK-START===------------------" && \
+    ldd /usr/local/bin/ffmpeg && \
+    echo "------------------===CHECK-START===------------------" && \
     ffmpeg -buildconf && \
-    ffmpeg -h filter=raisr
+    echo "------------------===CHECKS-PASSED===------------------"
 
 USER "ivsr"
-
 SHELL [ "/bin/bash", "-c" ]
 ENTRYPOINT [ "/opt/intel_ai_suite/ffmpeg" ]
 HEALTHCHECK --interval=30s --timeout=5s CMD ps aux | grep "ffmpeg" || exit 1
