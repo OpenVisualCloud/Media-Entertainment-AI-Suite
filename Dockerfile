@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Copyright (c) 2020-2023 Intel Corporation.
+# Copyright (c) 2025 Intel Corporation.
 # SPDX-License-Identifier: BSD-3-Clause
 
 ARG IMAGE_CACHE_REGISTRY=docker.io
