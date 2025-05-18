@@ -51,9 +51,6 @@ permissions:
   contents: read
 
 env:
-  BUILDKIT_STEP_LOG_MAX_SIZE: 50000000
-  BUILDKIT_STEP_LOG_MAX_SPEED: 10000000
-  DOCKER_TMPDIR: "/mnt/docker/docker-tmp"
   BUILD_TYPE: "${{ inputs.build_type }}"
   TRIVY_TIMEOUT: "30m0s"
   CONCURRENCY_GROUP: "${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}"
@@ -69,6 +66,59 @@ env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
+  docker:
+    name: "Dockerfile build for Intel® Tiber™ Broadcast Suite"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+      security-events: write
+    timeout-minutes: 240
+    steps:
+      - name: "OS-Configuration: Preparation: Harden Runner"
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        with:
+          egress-policy: audit
+
+      - name: "OS-Configuration: Report memory, block-dev and free disk space."
+        run: |
+          sudo free -h
+          sudo lsblk
+          sudo df -h
+          sudo mount
+
+      - name: "OS-Configuration: Disable SWAP in OS, create mnt points, show settings."
+        shell: bash
+        run: |
+          SWAP_FILE="$(sudo swapon --show=NAME | tail -n 1)"
+          sudo swapoff "${SWAP_FILE}"
+          sudo rm "${SWAP_FILE}"
+          sudo mkdir -p "/mnt/docker/docker-d" "/mnt/docker/docker-tmp"
+
+      - name: "OS-Configuration: Add data-root and other JSON changes to dockerd, reload it."
+        run: |
+          sudo jq '. += {"data-root":"/mnt/docker/docker-d","log-driver":"json-file","log-format":"text","log-level":"info","log-opts":{"cache-disabled":"false","cache-max-file":"5","cache-max-size":"20m","max-file":"5","max-size":"10m"}}' /etc/docker/daemon.json | sudo tee /etc/docker/daemon.json && \
+          sudo systemctl daemon-reload && \
+          sudo systemctl restart docker && \
+          sudo cat "/etc/docker/daemon.json"
+
+      - name: "Configuration: Docker with Buildx Toolkit set up"
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
+        with:
+          buildkitd-flags: "--debug --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host"
+          platforms: "linux/amd64"
+          driver-opts: memory=14Gib,memory-swap=25Gib,env.BUILDKIT_STEP_LOG_MAX_SIZE=50000000,env.BUILDKIT_STEP_LOG_MAX_SPEED=10000000
+# linux/amd64/v4
+
+      - name: "${{ inputs.docker_image_name }}: Login to Docker Container Registry"
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        if: ${{ env.DOCKER_REGISTRY_LOGIN == 'true' }}
+        continue-on-error: true
+        with:
+          registry: "${{ env.DOCKER_REGISTRY }}"
+          username: "${{ secrets.docker_registry_login   || github.repository_owner }}"
+          password: "${{ secrets.docker_registry_passkey || secrets.GITHUB_TOKEN }}"
+
   build-and-scan-docker-image:
     name: "${{ inputs.docker_image_name }}: Performing build and scan of Docker image from Dockerfile."
     runs-on: ["self-hosted", "docker", "Linux"]
