@@ -387,7 +387,7 @@ RUN mkdir -p "${PREFIX}/usr/lib" "${PREFIX}/usr/local" && \
     mv "${PREFIX}/bin" "${PREFIX}/usr/bin" && \
     mv "${PREFIX}/lib" "${PREFIX}/usr/local/"
 
-FROM ubuntu:22.04@sha256:67cadaff1dca187079fce41360d5a7eb6f7dcd3745e53c79ad5efd8563118240 AS runtime
+FROM ubuntu:24.04@sha256:6015f66923d7afbc53558d7ccffd325d43b4e249f41a6e93eef074c9505d2233 AS runtime
 
 LABEL org.opencontainers.image.authors="jerry.dong@intel.com,xiaoxia.liang@intel.com,milosz.linkiewicz@intel.com"
 LABEL org.opencontainers.image.url="https://github.com/OpenVisualCloud/Media-Entertainment-AI-Suite"
