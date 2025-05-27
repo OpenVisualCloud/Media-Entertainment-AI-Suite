@@ -51,3 +51,6 @@ Module.symvers
 Mkfile.old
 dkms.conf
 logs
+.gitsecret/keys/random_seed
+!*.secret
+tests/fuzzing_test/fuzzing_test.shtests/edsr_test/test_images/ref_image/LR_ref.pngtests/edsr_test/test_images/ref_image/HR_ref.pngtests/edsr_test/test_images/ref_image/00000000.pngtests/edsr_test/test_images/LR/LR_input.pngtests/edsr_test/test_images/LR/LR_input.pngtests/edsr_test/test_images/HR/HR_input.pngtests/edsr_test/test_images/HR/HR_input.pngtests/edsr_test/check_results.pytests/edsr_test/EDSR_test_cases.mdtests/fuzzing_test/ivsr_ffmpeg_cmds.txttests/fuzzing_test/ivsr_sample_cmds.txt

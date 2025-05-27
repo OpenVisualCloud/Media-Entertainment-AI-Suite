@@ -98,7 +98,7 @@ jobs:
         password: "${{ secrets.docker_registry_passkey || secrets.GITHUB_TOKEN }}"
       env:
         test_video_path: /opt/intel_ai_suite/assets
-        test_model_path: /opt/intel_ai_suite/model
+        test_model_path: /opt/intel_ai_suite/model/ivsr_2025.03
         ffmpeg_path: /opt/intel_ai_suite
       options: -u 0:0
       volumes:
