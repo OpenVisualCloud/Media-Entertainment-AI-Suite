@@ -8,7 +8,8 @@ docker build --build-arg http_proxy="${http_proxy:-}" \
   --build-arg PYTHON=python3.10 \
   --build-arg ENABLE_OV_PATCH=false \
   --build-arg OV_VERSION=2024.5 \
-  -f Dockerfile -t "${docker_tag}" --progress=plain \
+  -f Dockerfile -t "${docker_tag}" \
+  --target runtime-stage --progress=plain \
   ./
 
 # load ${docker_tag} image into crictl
