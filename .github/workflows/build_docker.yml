@@ -44,6 +44,7 @@ jobs:
       docker_image_tag: "${{ github.sha }}"
       docker_registry_login: true
       docker_registry_push: true
+      docker_build_args: NPROC=40
 
   raisr-container-run:
     name: "Container Test Run: RAISR Validation"
@@ -79,7 +80,9 @@ jobs:
         run: /opt/intel_ai_suite/ffmpeg -help filter=raisr_opencl
 
       - name: "Validation: Run validation tests for RAISR"
-        run: /opt/intel_ai_suite/tests/create_wrong_files.sh && /opt/intel_ai_suite/tests/run_tests_avxout.sh
+        run: |
+          "${GITHUB_WORKSPACE}/tests/validation/create_wrong_files.sh" && \
+          "${GITHUB_WORKSPACE}/tests/validation/run_tests_avxout.sh"
 
   ivsr-container-run:
     name: "Container Test Run: iVSR Validation"
@@ -95,6 +98,7 @@ jobs:
         password: "${{ secrets.docker_registry_passkey || secrets.GITHUB_TOKEN }}"
       env:
         test_video_path: /opt/intel_ai_suite/assets
+        test_model_path: /opt/intel_ai_suite/model
         ffmpeg_path: /opt/intel_ai_suite
       options: -u 0:0
       volumes:
@@ -110,4 +114,4 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: "Validation: Smoke test iVSR"
-        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" -help filter=dnn_processing
+        run: /opt/intel_ai_suite/ffmpeg -help filter=dnn_processing

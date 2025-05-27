@@ -24,6 +24,7 @@ ARG RAISR_REPO="https://github.com/OpenVisualCloud/Video-Super-Resolution-Librar
 ARG RAISR_BRANCH="v23.11.1"
 ARG FFMPEG_REPO="https://github.com/FFmpeg/FFmpeg"
 ARG FFMPEG_VERSION="n7.1"
+ARG NPROC
 
 ENV IVSR_DIR="${WORKSPACE}/ivsr"
 ENV OPENCV_DIR="${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2"
@@ -97,9 +98,9 @@ RUN mkdir -p "${OPENCV_DIR}/install" && \
       -DWITH_GSTREAMER=OFF \
       -DWITH_JASPER=OFF \
       .. && \
-    make -j "$(nproc)" && \
-    make install -j "$(nproc)" && \
-    DESTDIR=${INSTALL_PREFIX} make install -j "$(nproc)"
+    make -j "${NPROC:-$(nproc)}" && \
+    make install -j "${NPROC:-$(nproc)}" && \
+    DESTDIR=${INSTALL_PREFIX} make install -j "${NPROC:-$(nproc)}"
 
 WORKDIR "${OPENCV_DIR}/install/bin"
 RUN bash ./setup_vars_opencv4.sh
@@ -191,8 +192,8 @@ RUN mkdir -p "${IVSR_OV_DIR}/build" && \
       -DENABLE_CPU_DEBUG_CAPS=ON \
       -DCMAKE_BUILD_TYPE=Release \
       -B "${IVSR_OV_DIR}/build" -S "${IVSR_OV_DIR}" && \
-    make -j$(nproc) -C ${IVSR_OV_DIR}/build && \
-    make -j$(nproc) -C ${IVSR_OV_DIR}/build install && \
+    make -j${NPROC:-$(nproc)} -C ${IVSR_OV_DIR}/build && \
+    make -j${NPROC:-$(nproc)} -C ${IVSR_OV_DIR}/build install && \
     rm -rf "${IVSR_OV_DIR}"
 
 ENV CUSTOM_IE_DIR=${INSTALL_PREFIX}/runtime
@@ -211,8 +212,8 @@ RUN cmake \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
       -B "${IVSR_SDK_DIR}/build" -S "${IVSR_SDK_DIR}" && \
-    make -j"$(nproc)" -C "${IVSR_SDK_DIR}/build" && \
-    make -j"$(nproc)" -C "${IVSR_SDK_DIR}/build" install
+    make -j"${NPROC:-$(nproc)}" -C "${IVSR_SDK_DIR}/build" && \
+    make -j"${NPROC:-$(nproc)}" -C "${IVSR_SDK_DIR}/build" install
 
 RUN source /opt/intel/common.sh && \
     git_repo_download_strip_unpack "${FFMPEG_REPO}" "refs/tags/${FFMPEG_VERSION}" "${FFMPEG_DIR}" && \
@@ -273,8 +274,8 @@ RUN if [ -f "${IVSR_OV_DIR}/install/setvars.sh" ]; then \
       --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
       --enable-cross-compile \
       --prefix="${INSTALL_PREFIX}" && \
-    make -j"$(nproc)" && \
-    make -j"$(nproc)" install
+    make -j"${NPROC:-$(nproc)}" && \
+    make -j"${NPROC:-$(nproc)}" install
 
 ARG IMAGE_CACHE_REGISTRY
 FROM "${IMAGE_CACHE_REGISTRY}/library/ubuntu:22.04@sha256:67cadaff1dca187079fce41360d5a7eb6f7dcd3745e53c79ad5efd8563118240" AS runtime-stage
