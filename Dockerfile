@@ -155,18 +155,15 @@ RUN apt-get update && \
     python -m pip --no-cache-dir install --upgrade pip setuptools
 
 WORKDIR "${IVSR_OV_DIR}"
-RUN git clone ${OV_REPO} ${IVSR_OV_DIR} && \
-    git checkout ${OV_BRANCH} && \
-    git submodule update --init --recursive
+RUN git clone --branch "${OV_BRANCH}" --depth 1 --recurse-submodules --shallow-submodules "${OV_REPO}" "${IVSR_OV_DIR}"
 
+WORKDIR "${IVSR_DIR}/ivsr_ov/based_on_openvino_2022.3/openvino"
 RUN if [ "$ENABLE_OV_PATCH" = "true" ] && [ "$OV_VERSION" = "2022.3" ]; then \
-        { set -e; \
-          for patch_file in $(find ../patches -iname "*.patch" | sort -n); do \
-            echo "Applying: ${patch_file}"; \
-            git am --whitespace=fix ${patch_file}; \
-          done; }; \
+      git clone --branch "2022.3.0" --depth 1 --recurse-submodules --shallow-submodules ${OV_REPO} . && \
+      for patch_file in "${IVSR_DIR}/ivsr_ov/based_on_openvino_2022.3/patches/"*.patch; do \
+        patch -d "$(pwd)" -p1 "${patch_file}"; \
+      done; \
     fi
-
 WORKDIR "${BASED_ON_OPENVINO_DIR}"
 RUN mkdir -p "${IVSR_OV_DIR}/build" && \
     cmake \
@@ -209,6 +206,7 @@ WORKDIR "${RAISR_DIR}"
 RUN cmake \
       -DENABLE_LOG=OFF \
       -DENABLE_PERF=OFF \
+      -DENABLE_SAMPLE=ON \
       -DENABLE_THREADPROCESS=ON \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
