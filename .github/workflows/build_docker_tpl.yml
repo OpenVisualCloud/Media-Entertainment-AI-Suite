@@ -116,21 +116,21 @@ jobs:
         with:
           image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
           format: "sarif"
-          output: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+          output: "trivy-image-vulnerability-scanner.sarif"
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload results as artifacts"
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # V4.4.3
         continue-on-error: true
         with:
-          name: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
-          path: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+          name: "trivy-image-vulnerability-scanner.sarif"
+          path: "${{ github.workspace }}/trivy-image-vulnerability-scanner.sarif"
           retention-days: 14
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload results to Security tab"
         uses: github/codeql-action/upload-sarif@2e230e8fe0ad3a14a340ad0815ddb96d599d2aff # v3.25.8
         continue-on-error: true
         with:
-          sarif_file: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+          sarif_file: "${{ github.workspace }}/trivy-image-vulnerability-scanner.sarif"
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy in GitHub SBOM mode and submit results to Dependency Graph"
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
