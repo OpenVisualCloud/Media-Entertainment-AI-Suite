@@ -66,13 +66,12 @@ env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  build-and-scan-docker-image:
-    name: "${{ inputs.docker_image_name }}: Performing build and scan of Docker image from Dockerfile."
+  build-docker-image:
+    name: "${{ inputs.docker_image_name }}: Performing build of Docker image from Dockerfile."
     runs-on: ["self-hosted", "docker", "Linux"]
     permissions:
       contents: write
       packages: write
-      security-events: write
     timeout-minutes: 240
     steps:
       - name: "${{ inputs.docker_image_name }}: Harden Runner"
@@ -109,6 +108,37 @@ jobs:
           cache-from: type=gha,scope=${{ env.DOCKER_IMAGE_NAME }}
           cache-to: type=gha,mode=max,scope=${{ env.DOCKER_IMAGE_NAME }}
           build-args: "${{ env.DOCKER_BUILD_ARGS }}"
+
+  scan-docker-image:
+    name: "${{ inputs.docker_image_name }}: Performing scan of Docker image from Dockerfile."
+    runs-on: ["ubuntu-22.04"]
+    permissions:
+      contents: write
+      packages: read
+      security-events: write
+    timeout-minutes: 60
+    steps:
+      - name: "${{ inputs.docker_image_name }}: Harden Runner"
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        with:
+          egress-policy: audit
+
+      - name: "${{ inputs.docker_image_name }}: Checkout repository"
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: "${{ inputs.docker_image_name }}: Set up Docker Buildx"
+        uses: docker/setup-buildx-action@4fd812986e6c8c2a69e18311145f9371337f27d4 # v3.4.0
+        with:
+          platforms: "linux/amd64/v4"
+
+      - name: "${{ inputs.docker_image_name }}: Login to Docker Container Registry"
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        if: ${{ env.DOCKER_REGISTRY_LOGIN == 'true' }}
+        continue-on-error: true
+        with:
+          registry: "${{ env.DOCKER_REGISTRY }}"
+          username: "${{ secrets.docker_registry_login   || github.repository_owner }}"
+          password: "${{ secrets.docker_registry_passkey || secrets.GITHUB_TOKEN }}"
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy run vulnerability scanner on image"
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
@@ -149,4 +179,4 @@ jobs:
         with:
           name: trivy-sbom-report
           path: "${{ github.workspace }}/dependency-results.sbom.json"
-          retention-days: 7
+          retention-days: 14
