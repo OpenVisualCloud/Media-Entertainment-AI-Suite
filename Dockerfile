@@ -24,6 +24,7 @@ ARG RAISR_REPO="https://github.com/OpenVisualCloud/Video-Super-Resolution-Librar
 ARG RAISR_BRANCH="v23.11.1"
 ARG FFMPEG_REPO="https://github.com/FFmpeg/FFmpeg"
 ARG FFMPEG_VERSION="n7.1"
+ARG NPROC
 
 ENV IVSR_DIR="${WORKSPACE}/ivsr"
 ENV OPENCV_DIR="${WORKSPACE}/opencv-4.5.3-openvino-2021.4.2"
@@ -97,9 +98,9 @@ RUN mkdir -p "${OPENCV_DIR}/install" && \
       -DWITH_GSTREAMER=OFF \
       -DWITH_JASPER=OFF \
       .. && \
-    make -j "$(nproc)" && \
-    make install -j "$(nproc)" && \
-    DESTDIR=${INSTALL_PREFIX} make install -j "$(nproc)"
+    make -j "${NPROC:-$(nproc)}" && \
+    make install -j "${NPROC:-$(nproc)}" && \
+    DESTDIR=${INSTALL_PREFIX} make install -j "${NPROC:-$(nproc)}"
 
 WORKDIR "${OPENCV_DIR}/install/bin"
 RUN bash ./setup_vars_opencv4.sh
@@ -155,18 +156,15 @@ RUN apt-get update && \
     python -m pip --no-cache-dir install --upgrade pip setuptools
 
 WORKDIR "${IVSR_OV_DIR}"
-RUN git clone ${OV_REPO} ${IVSR_OV_DIR} && \
-    git checkout ${OV_BRANCH} && \
-    git submodule update --init --recursive
+RUN git clone --branch "${OV_BRANCH}" --depth 1 --recurse-submodules --shallow-submodules "${OV_REPO}" "${IVSR_OV_DIR}"
 
+WORKDIR "${IVSR_DIR}/ivsr_ov/based_on_openvino_2022.3/openvino"
 RUN if [ "$ENABLE_OV_PATCH" = "true" ] && [ "$OV_VERSION" = "2022.3" ]; then \
-        { set -e; \
-          for patch_file in $(find ../patches -iname "*.patch" | sort -n); do \
-            echo "Applying: ${patch_file}"; \
-            git am --whitespace=fix ${patch_file}; \
-          done; }; \
+      git clone --branch "2022.3.0" --depth 1 --recurse-submodules --shallow-submodules ${OV_REPO} . && \
+      for patch_file in "${IVSR_DIR}/ivsr_ov/based_on_openvino_2022.3/patches/"*.patch; do \
+        patch -d "$(pwd)" -p1 "${patch_file}"; \
+      done; \
     fi
-
 WORKDIR "${BASED_ON_OPENVINO_DIR}"
 RUN mkdir -p "${IVSR_OV_DIR}/build" && \
     cmake \
@@ -194,8 +192,8 @@ RUN mkdir -p "${IVSR_OV_DIR}/build" && \
       -DENABLE_CPU_DEBUG_CAPS=ON \
       -DCMAKE_BUILD_TYPE=Release \
       -B "${IVSR_OV_DIR}/build" -S "${IVSR_OV_DIR}" && \
-    make -j$(nproc) -C ${IVSR_OV_DIR}/build && \
-    make -j$(nproc) -C ${IVSR_OV_DIR}/build install && \
+    make -j${NPROC:-$(nproc)} -C ${IVSR_OV_DIR}/build && \
+    make -j${NPROC:-$(nproc)} -C ${IVSR_OV_DIR}/build install && \
     rm -rf "${IVSR_OV_DIR}"
 
 ENV CUSTOM_IE_DIR=${INSTALL_PREFIX}/runtime
@@ -209,12 +207,13 @@ WORKDIR "${RAISR_DIR}"
 RUN cmake \
       -DENABLE_LOG=OFF \
       -DENABLE_PERF=OFF \
+      -DENABLE_SAMPLE=ON \
       -DENABLE_THREADPROCESS=ON \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX="${INSTALL_PREFIX}" \
       -B "${IVSR_SDK_DIR}/build" -S "${IVSR_SDK_DIR}" && \
-    make -j"$(nproc)" -C "${IVSR_SDK_DIR}/build" && \
-    make -j"$(nproc)" -C "${IVSR_SDK_DIR}/build" install
+    make -j"${NPROC:-$(nproc)}" -C "${IVSR_SDK_DIR}/build" && \
+    make -j"${NPROC:-$(nproc)}" -C "${IVSR_SDK_DIR}/build" install
 
 RUN source /opt/intel/common.sh && \
     git_repo_download_strip_unpack "${FFMPEG_REPO}" "refs/tags/${FFMPEG_VERSION}" "${FFMPEG_DIR}" && \
@@ -275,8 +274,8 @@ RUN if [ -f "${IVSR_OV_DIR}/install/setvars.sh" ]; then \
       --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
       --enable-cross-compile \
       --prefix="${INSTALL_PREFIX}" && \
-    make -j"$(nproc)" && \
-    make -j"$(nproc)" install
+    make -j"${NPROC:-$(nproc)}" && \
+    make -j"${NPROC:-$(nproc)}" install
 
 ARG IMAGE_CACHE_REGISTRY
 FROM "${IMAGE_CACHE_REGISTRY}/library/ubuntu:22.04@sha256:67cadaff1dca187079fce41360d5a7eb6f7dcd3745e53c79ad5efd8563118240" AS runtime-stage

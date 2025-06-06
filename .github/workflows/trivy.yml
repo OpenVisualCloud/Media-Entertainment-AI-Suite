@@ -49,14 +49,14 @@ jobs:
         uses: github/codeql-action/upload-sarif@b611370bb5703a7efb587f9d136a52ea24c5c38c # v3.25.11
         continue-on-error: true
         with:
-          sarif_file: "trivy-fs-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
+          sarif_file: "${{ github.workspace }}/trivy-fs-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
 
       - name: "Trivy: Upload scan results as artifacts (out=sarif)"
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # V4.4.3
         with:
           name: "trivy-config-scan-results-sarif-${{ github.event.pull_request.number || github.sha }}"
-          path: "trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
-          retention-days: 5
+          path: "${{ github.workspace }}/trivy-fs-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
+          retention-days: 14
 
   scan-config-mode:
     permissions:
@@ -97,18 +97,18 @@ jobs:
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@b611370bb5703a7efb587f9d136a52ea24c5c38c # v3.25.11
         with:
-          sarif_file: "trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
+          sarif_file: "${{ github.workspace }}/trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
 
       - name: "Trivy: Upload scan results as artifacts (out=sarif)"
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # V4.4.3
         with:
-          name: "trivy-config-scan-results-sarif-${{ github.event.pull_request.number || github.sha }}"
-          path: "trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
-          retention-days: 5
+          name: "trivy-vulnerability-scan-results-sarif-${{ github.event.pull_request.number || github.sha }}"
+          path: "${{ github.workspace }}/trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.sarif"
+          retention-days: 14
 
       - name: "Trivy: Upload scan results as artifacts (out=table)"
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # V4.4.3
         with:
           name: "trivy-config-scan-results-table-${{ github.event.pull_request.number || github.sha }}"
-          path: "trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.txt"
-          retention-days: 5
+          path: "${{ github.workspace }}/trivy-config-scan-results-${{ github.event.pull_request.number || github.sha }}.txt"
+          retention-days: 14
