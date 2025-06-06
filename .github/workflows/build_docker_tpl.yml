@@ -112,6 +112,7 @@ jobs:
   scan-docker-image:
     name: "${{ inputs.docker_image_name }}: Performing scan of Docker image from Dockerfile."
     runs-on: ["ubuntu-22.04"]
+    needs: build-docker-image
     permissions:
       contents: write
       packages: read
