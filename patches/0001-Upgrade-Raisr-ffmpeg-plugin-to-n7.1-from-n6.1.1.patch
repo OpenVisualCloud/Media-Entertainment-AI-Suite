@@ -10,7 +10,7 @@ Signed-off-by: Xiaoxia Liang <xiaoxia.liang@intel.com>
  libavfilter/allfilters.c      |   2 +
  libavfilter/vf_raisr.c        | 367 ++++++++++++++++++++++++++++++++++
  libavfilter/vf_raisr_opencl.c | 270 +++++++++++++++++++++++++
- 5 files changed, 654 insertions(+)
+ 7 files changed, 654 insertions(+)
  create mode 100644 libavfilter/vf_raisr.c
  create mode 100644 libavfilter/vf_raisr_opencl.c
 
@@ -97,7 +97,7 @@ new file mode 100644
 index 0000000000..8b512a66a5
 --- /dev/null
 +++ b/libavfilter/vf_raisr.c
-@@ -0,0 +1,367 @@
+@@ -0,0 +1,410 @@
 +/*
 + * Intel Library for Video Super Resolution ffmpeg plugin
 + *
@@ -136,6 +136,8 @@ index 0000000000..8b512a66a5
 +#include "raisr/RaisrHandler.h"
 +#include "raisr/RaisrDefaults.h"
 +#include <unistd.h>
++#include <sys/stat.h>
++#include <limits.h>
 +
 +#define MIN_RATIO 1
 +#define MAX_RATIO 2
@@ -195,24 +197,65 @@ index 0000000000..8b512a66a5
 +
 +AVFILTER_DEFINE_CLASS(raisr);
 +
++    // Helper to check if a file is a symlink
++    static int is_symlink(const char *path) {
++        struct stat st;
++        if (lstat(path, &st) == 0) {
++            //return S_ISLNK(st.st_mode);
++            if (S_ISLNK(st.st_mode)) {
++                 return 1; // It's a symbolic link
++            } else {
++                 return 0; // It's not a symbolic link
++            }
++        }
++        return 0;
++    }
++
 +static av_cold int init(AVFilterContext *ctx)
 +{
 +    RaisrContext *raisr = ctx->priv;
-+
 +    char cwd[255];
 +    if (getcwd(cwd, 255) == NULL)
 +        return AVERROR(ENOENT);
-+
 +    char basepath[255];
 +    strcpy(basepath, cwd);
++   // Null byte injection handling: check for embedded nulls or suspicious patterns
++   if (raisr->filterfolder) {
++       // Check for embedded nulls (shouldn't happen in C, but for completeness)
++       size_t len = strlen(raisr->filterfolder);
++       for (size_t i = 0; i < len; ++i) {
++           if (raisr->filterfolder[i] == '\0') {
++               av_log(ctx, AV_LOG_ERROR, "NULL byte detected in filterfolder argument\n");
++               return AVERROR(EINVAL);
++           }
++       }
++       // Check for suspicious %00 pattern (URL encoding of NULL)
++       if (strstr(raisr->filterfolder, "%00")) {
++           av_log(ctx, AV_LOG_ERROR, "NULL byte injection pattern detected in filterfolder argument\n");
++           return AVERROR(EINVAL);
++       }
++      // Check if filterfolder is a symlink
++      if (is_symlink(raisr->filterfolder)) {
++          av_log(ctx, AV_LOG_ERROR, "Symlink target not allowed: %s\n", raisr->filterfolder);
++          return AVERROR(EINVAL);
++      }
++   }
++
 +    if (strcmp(raisr->filterfolder, "") == 0)
 +    {
-+        strcat(basepath, "/filters_2x/filters_lowres");
-+    }
-+    else
-+    {
-+        strcpy(basepath, raisr->filterfolder);
-+    }
++       // Check if default path is a symlink
++       char default_path[PATH_MAX];
++       snprintf(default_path, sizeof(default_path), "%s/filters_2x/filters_lowres", cwd);
++       if (is_symlink(default_path)) {
++           av_log(ctx, AV_LOG_ERROR, "Symlink target not allowed: %s\n", default_path);
++           return AVERROR(EINVAL);
++       }
++       strcat(basepath, "/filters_2x/filters_lowres");
++   }
++   else
++   {
++       strcpy(basepath, raisr->filterfolder);
++   }
 +
 +    RangeType rangeType = VideoRange;
 +    if (strcmp(raisr->range, "full") == 0)
