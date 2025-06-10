@@ -66,104 +66,12 @@ env:
   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
-  docker:
-    name: "Dockerfile build for Intel® Tiber™ Broadcast Suite"
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      packages: write
-      security-events: write
-    timeout-minutes: 240
-    steps:
-      - name: "OS-Configuration: Preparation: Harden Runner"
-        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
-        with:
-          egress-policy: audit
-
-      - name: "OS-Configuration: Report block-dev and free disk space."
-        shell: bash
-        run: |
-          {
-            echo -e "## OS Memory information:\n'''\n"
-            free -h
-            echo -e "\n'''\n## OS Block devices available:\n'''\n"
-            lsblk
-            echo -e "\n'''\n## OS Free disk space:\n'''\n"
-            df -h
-            echo -e "\n'''\n## Check if diskfree>=35Gi and memfree>=13Gi\n'''\n"
-          } >> "$GITHUB_STEP_SUMMARY"
-          DISKFREE="$(df --output=avail,target --type=ext4 | grep /mnt | cut -d' ' -f1)"
-          MEMFREE="$(sed 's/:\s*/: /g' /proc/meminfo | grep MemFree: | cut -d' ' -f2)"
-          lsblk | grep 'sdb\|sda' | grep ' /$\| /mnt' && \
-          df --output=avail,source --type=ext4 && \
-          [[ "$MEMFREE" -ge "13312000" ]] && [[ "$DISKFREE" -ge "35840000" ]]
-          {
-            echo "DISKFREE=${DISKFREE}"
-            echo "MEMFREE=${MEMFREE}"
-            echo -e "\n'''\n"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: "OS-Configuration: Disable SWAP in OS, add JSON changes to dockerd, apply and restart."
-        shell: bash
-        run: |
-          echo "OS-Configuration: Disable and remove swap."
-          SWAP_FILE="$(sudo swapon --show=NAME | tail -n 1)" && \
-          export SWAP_FILE;
-          sudo swapoff "${SWAP_FILE}" && \
-          sudo rm -f "${SWAP_FILE}"
-          sudo mkdir -p "/mnt/docker/docker-d" "/mnt/docker/docker-tmp" "/etc/docker"
-          echo "OS-Configuration: Update /etc/docker/daemon.json and restart docker daemon."
-          sudo chmod 666 /etc/docker/daemon.json
-          DAEMON_TMP="$(jq '. += {"data-root":"/mnt/docker/docker-d","log-driver":"json-file","log-format":"text","log-level":"info","log-opts":{"cache-disabled":"false","cache-max-file":"5","cache-max-size":"20m","max-file":"5","max-size":"10m"}}' /etc/docker/daemon.json)"
-          echo "${DAEMON_TMP}" > /etc/docker/daemon.json
-          sudo chmod 644 /etc/docker/daemon.json
-          sudo systemctl daemon-reload
-          sudo systemctl restart docker
-          {
-            echo -e "## OS Docker /etc/docker/daemon.json information:<br>'''yaml\n";
-            cat "/etc/docker/daemon.json";
-            echo -e "\n'''\n";
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: "${{ inputs.docker_image_name }}: Checkout repository"
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-
-      - name: "${{ inputs.docker_image_name }}: Login to Docker Container Registry"
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
-        if: ${{ env.DOCKER_REGISTRY_LOGIN == 'true' }}
-        continue-on-error: true
-        with:
-          registry: "${{ env.DOCKER_REGISTRY }}"
-          username: "${{ secrets.docker_registry_login   || github.repository_owner }}"
-          password: "${{ secrets.docker_registry_passkey || secrets.GITHUB_TOKEN }}"
-
-      - name: "${{ inputs.docker_image_name }}: Docker with Buildx Toolkit set up"
-        uses: docker/setup-buildx-action@4fd812986e6c8c2a69e18311145f9371337f27d4 # v3.4.0
-        with:
-          buildkitd-flags: "--debug --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host"
-          platforms: "linux/amd64"
-          driver-opts: memory=13Gib,memory-swap=25Gib,env.BUILDKIT_STEP_LOG_MAX_SIZE=50000000,env.BUILDKIT_STEP_LOG_MAX_SPEED=10000000 # linux/amd64/v4
-
-      - name: "${{ inputs.docker_image_name }}: Build and push image"
-        uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
-        with:
-          load: false
-          push: "${{ env.DOCKER_IMAGE_PUSH }}"
-          platforms: "${{ env.DOCKER_PLATFORMS }}"
-          file: "${{ github.workspace }}/${{ env.DOCKER_FILE_PATH }}"
-          tags: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
-          target: runtime-stage
-          cache-from: type=gha,scope=${{ env.DOCKER_IMAGE_NAME }}
-          cache-to: type=gha,mode=max,scope=${{ env.DOCKER_IMAGE_NAME }}
-          build-args: "${{ env.DOCKER_BUILD_ARGS }}"
-
-  build-and-scan-docker-image:
-    name: "${{ inputs.docker_image_name }}: Performing build and scan of Docker image from Dockerfile."
+  build-docker-image:
+    name: "${{ inputs.docker_image_name }}: Performing build of Docker image from Dockerfile."
     runs-on: ["self-hosted", "docker", "Linux"]
     permissions:
       contents: write
       packages: write
-      security-events: write
     timeout-minutes: 240
     steps:
       - name: "${{ inputs.docker_image_name }}: Harden Runner"
@@ -175,10 +83,12 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
       - name: "${{ inputs.docker_image_name }}: Set up Docker Buildx"
-        uses: docker/setup-buildx-action@4fd812986e6c8c2a69e18311145f9371337f27d4 # v3.4.0
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        with:
+          platforms: "linux/amd64/v4"
 
       - name: "${{ inputs.docker_image_name }}: Login to Docker Container Registry"
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         if: ${{ env.DOCKER_REGISTRY_LOGIN == 'true' }}
         continue-on-error: true
         with:
@@ -191,7 +101,7 @@ jobs:
         with:
           load: true
           push: "${{ env.DOCKER_IMAGE_PUSH }}"
-          platforms: "${{ env.DOCKER_PLATFORMS }}"
+          platforms: "linux/amd64/v4"
           file: "${{ env.DOCKER_FILE_PATH }}"
           tags: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
           target: runtime-stage
@@ -199,27 +109,59 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ env.DOCKER_IMAGE_NAME }}
           build-args: "${{ env.DOCKER_BUILD_ARGS }}"
 
+  scan-docker-image:
+    name: "${{ inputs.docker_image_name }}: Performing scan of Docker image from Dockerfile."
+    runs-on: ["ubuntu-22.04"]
+    needs: build-docker-image
+    permissions:
+      contents: write
+      packages: read
+      security-events: write
+    timeout-minutes: 60
+    steps:
+      - name: "${{ inputs.docker_image_name }}: Harden Runner"
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        with:
+          egress-policy: audit
+
+      - name: "${{ inputs.docker_image_name }}: Checkout repository"
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: "${{ inputs.docker_image_name }}: Set up Docker Buildx"
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+        with:
+          platforms: "linux/amd64/v4"
+
+      - name: "${{ inputs.docker_image_name }}: Login to Docker Container Registry"
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        if: ${{ env.DOCKER_REGISTRY_LOGIN == 'true' }}
+        continue-on-error: true
+        with:
+          registry: "${{ env.DOCKER_REGISTRY }}"
+          username: "${{ secrets.docker_registry_login   || github.repository_owner }}"
+          password: "${{ secrets.docker_registry_passkey || secrets.GITHUB_TOKEN }}"
+
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy run vulnerability scanner on image"
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
         continue-on-error: true
         with:
           image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
           format: "sarif"
-          output: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+          output: "trivy-image-vulnerability-scanner.sarif"
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload results as artifacts"
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # V4.4.3
         continue-on-error: true
         with:
-          name: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
-          path: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+          name: "trivy-image-vulnerability-scanner.sarif"
+          path: "${{ github.workspace }}/trivy-image-vulnerability-scanner.sarif"
           retention-days: 14
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload results to Security tab"
         uses: github/codeql-action/upload-sarif@2e230e8fe0ad3a14a340ad0815ddb96d599d2aff # v3.25.8
         continue-on-error: true
         with:
-          sarif_file: "trivy-${{ github.event.pull_request.number || github.sha }}-${{ env.DOCKER_IMAGE_NAME }}-${{ env.DOCKER_IMAGE_TAG }}.sarif"
+          sarif_file: "${{ github.workspace }}/trivy-image-vulnerability-scanner.sarif"
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy in GitHub SBOM mode and submit results to Dependency Graph"
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
@@ -232,29 +174,21 @@ jobs:
           output: "dependency-results.sbom.json"
           github-pat: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: "${{ inputs.docker_image_name }}: Scanner Trivy in SPDX SBOM mode"
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+        continue-on-error: true
+        with:
+          image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
+          scan-type: "image"
+          format: "spdx"
+          scanners: "vuln,secret,misconfig,license"
+          output: "dependency-results.spdx"
+          github-pat: ${{ secrets.GITHUB_TOKEN }}
+
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload sbom report as a Github artifact"
         uses: actions/upload-artifact@v4
         continue-on-error: true
         with:
-          name: trivy-sbom-report
-          path: "${{ github.workspace }}/dependency-results.sbom.json"
-          retention-days: 7
-
-      - name: "${{ inputs.docker_image_name }}: smoke test iVSR"
-        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" -help filter=dnn_processing
-
-      - name: "${{ inputs.docker_image_name }}: smoke test raisr"
-        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" -help filter=raisr
-
-      - name: "${{ inputs.docker_image_name }}: smoke test raisr opencl"
-        run: docker run "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" -help filter=raisr_opencl
-
-      - name: "${{ inputs.docker_image_name }}: run validation tests for raisr"
-        run: |
-          docker run -u 0:0 --entrypoint=/bin/bash \
-            -v "$(pwd)/tests/validation/":/opt/intel_ai_suite/tests \
-            -v /home/runner/workspace/assets/test_videos:/opt/intel_ai_suite/assets \
-            -e test_video_path=/opt/intel_ai_suite/assets \
-            -e ffmpeg_path=/opt/intel_ai_suite \
-            "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}" \
-            -c "/opt/intel_ai_suite/tests/create_wrong_files.sh && /opt/intel_ai_suite/tests/run_tests_avxout.sh"
+          name: "trivy-image-sbom-report.spdx"
+          path: "${{ github.workspace }}/dependency-results.spdx"
+          retention-days: 14

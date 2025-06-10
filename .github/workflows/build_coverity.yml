@@ -1,0 +1,82 @@
+name: Coverity Build
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run scans on'
+        default: 'main'
+        type: string
+  workflow_call:
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  COVERITY_PROJECT: 'Media-Entertainment-AI-Suite'
+  COVERITY_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
+  COVERITY_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+  DESCRIPTION: ${{ github.ref_name }}
+  VERSION: ${{ github.sha }}
+jobs:
+  coverity-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install FFmpeg Build Dependencies
+        run: |
+          sudo apt-get update && \
+          sudo apt-get install --no-install-recommends -y \
+            build-essential git autoconf automake libtool cmake \
+            yasm nasm pkg-config libx264-dev libx265-dev libass-dev libfreetype6-dev \
+            libsdl2-dev libvorbis-dev libvpx-dev && \
+          curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
+          curl -fsSL https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor | sudo tee /usr/share/keyrings/intel-graphics-archive-keyring.gpg > /dev/null && \
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/intel-oneAPI.list && \
+          echo "deb [signed-by=/usr/share/keyrings/intel-graphics-archive-keyring.gpg arch=amd64] https://repositories.intel.com/graphics/ubuntu jammy flex" | sudo tee /etc/apt/sources.list.d/intel-graphics.list && \
+          sudo apt-get update --fix-missing && \
+          sudo apt-get install --no-install-recommends -y \
+            opencl-headers \
+            ocl-icd-opencl-dev \
+            intel-oneapi-ipp-devel-2022.0
+
+      - name: Download and Install Coverity Tools
+        env:
+          LANGUAGE: cxx
+        run: |
+          "${GITHUB_WORKSPACE}/.github/coverity/install_coverity.sh"
+          echo "/opt/coverity/cxx/cov-analysis-linux64-2024.6.1/bin" >> "$GITHUB_PATH"
+
+      - name: Preparation of Baseline FFmpeg
+        shell: bash
+        env:
+          FFMPEG_REPO: "https://github.com/FFmpeg/FFmpeg"
+          FFMPEG_VERSION: "n7.1"
+          RAISR_REPO: "https://github.com/OpenVisualCloud/Video-Super-Resolution-Library"
+          RAISR_BRANCH: "v23.11.1"
+        run: |
+          . "${GITHUB_WORKSPACE}/scripts/common.sh" && \
+          git_repo_download_strip_unpack "${FFMPEG_REPO}" "refs/tags/${FFMPEG_VERSION}" "${GITHUB_WORKSPACE}/ffmpeg" && \
+          git_repo_download_strip_unpack "${RAISR_REPO}" "${RAISR_BRANCH}" "${GITHUB_WORKSPACE}/Video-Super-Resolution-Library"
+
+      - name: Build and Scan of Baseline FFmpeg
+        shell: bash
+        working-directory: "${{ github.workspace }}/ffmpeg"
+        run: |
+          ./configure --enable-gpl --enable-libx264 --enable-libx265 --enable-libass --enable-libfreetype --enable-libvorbis --enable-libvpx && \
+          cov-build --dir cov-int-baseline make -j"$(nproc)" && \
+          tar -czf cov-baseline.tar.gz cov-int-baseline
+
+      - name: Apply RAISR Patch
+        shell: bash
+        run: |
+          patch -d "${GITHUB_WORKSPACE}/ffmpeg" -p1 < "${GITHUB_WORKSPACE}/patches/"*
+          "${GITHUB_WORKSPACE}/Video-Super-Resolution-Library/build.sh" -DENABLE_RAISR_OPENCL=ON \
+            -DCMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;" \
+            -DCMAKE_C_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp" \
+            -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp"
