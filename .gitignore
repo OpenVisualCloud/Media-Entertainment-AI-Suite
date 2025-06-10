@@ -63,3 +63,11 @@ tests/edsr_test/check_results.py
 tests/edsr_test/EDSR_test_cases.md
 tests/fuzzing_test/ivsr_ffmpeg_cmds.txt
 tests/fuzzing_test/ivsr_sample_cmds.txt
+tests/ffmpeg_ivsr_sdk_test/colorbars.mp4
+tests/ffmpeg_ivsr_sdk_test/function_test.sh
+tests/ffmpeg_ivsr_sdk_test/README.md
+tests/ffmpeg_ivsr_sdk_test/stress_test_long.sh
+tests/ffmpeg_ivsr_sdk_test/stress_test_loop.sh
+tests/ffmpeg_ivsr_sdk_test/test_controler.sh
+tests/ffmpeg_ivsr_sdk_test/test_params.json
+tests/ffmpeg_ivsr_sdk_test/test_video_model_output_psnr.txt
