@@ -19,7 +19,7 @@ env:
   DOCKER_REGISTRY: "ghcr.io"
   DOCKER_REGISTRY_PREFIX: "openvisualcloud/media-entertainment-ai-suite"
   DOCKER_IMAGE_NAME: "ivsr_raisr"
-  DOCKER_IMAGE_TAG: "${{ github.sha }}"
+  DOCKER_IMAGE_TAG: "${{ github.event_name == 'push' && 'latest' || github.sha }}"
 
 permissions:
   contents: read
@@ -41,7 +41,7 @@ jobs:
       docker_registry_prefix: "openvisualcloud/media-entertainment-ai-suite"
       docker_file_path: "Dockerfile"
       docker_image_name: "ivsr_raisr"
-      docker_image_tag: "${{ github.sha }}"
+      docker_image_tag: "${{ github.event_name == 'push' && 'latest' || github.sha }}"
       docker_registry_login: true
       docker_registry_push: true
       docker_build_args: NPROC=40
@@ -49,21 +49,26 @@ jobs:
   raisr-container-run:
     name: "Container Test Run: RAISR Validation"
     needs: ivsr-image-build
+    if: github.event_name != 'push'
     runs-on: ["self-hosted", "docker", "Linux"]
     permissions:
       contents: read
       packages: read
     container:
-      image: "ghcr.io/openvisualcloud/media-entertainment-ai-suite/ivsr_raisr:${{ github.sha }}"
+      image: "ghcr.io/openvisualcloud/media-entertainment-ai-suite/ivsr_raisr:${{ github.event_name == 'push' && 'latest' || github.sha }}"
       credentials:
         username: "${{ secrets.docker_registry_login   || github.repository_owner }}"
         password: "${{ secrets.docker_registry_passkey || secrets.GITHUB_TOKEN }}"
       env:
-        test_video_path: /opt/intel_ai_suite/assets
+        test_video_path: /opt/intel_ai_suite/test_videos
         ffmpeg_path: /opt/intel_ai_suite
       options: -u 0:0
       volumes:
-        - /home/runner/workspace/assets/test_videos:/opt/intel_ai_suite/assets
+        - /home/runner/workspace/assets/test_videos:/opt/intel_ai_suite/test_videos
+        - /mnt/hugepages-1Gi:/mnt/hugepages-1Gi
+        - /dev/vfio:/dev/vfio
+        - /dev/shm:/dev/shm
+        - /dev/dri/:/dev/dri/
     steps:
       - name: "Validation: Harden Runner"
         uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
@@ -76,23 +81,62 @@ jobs:
       - name: "Validation: Smoke test RAISR"
         run: /opt/intel_ai_suite/ffmpeg -help filter=raisr
 
-      - name: "Validation: Smoke test raisr OpenCL"
-        run: /opt/intel_ai_suite/ffmpeg -help filter=raisr_opencl
-
       - name: "Validation: Run validation tests for RAISR"
         run: |
           "${GITHUB_WORKSPACE}/tests/validation/create_wrong_files.sh" && \
           "${GITHUB_WORKSPACE}/tests/validation/run_tests_avxout.sh"
 
-  ivsr-container-run:
-    name: "Container Test Run: iVSR Validation"
+  raisr-opencl-container-run:
+    name: "Container Test Run: RAISR OpenCL Validation"
     needs: ivsr-image-build
+    if: github.event_name != 'push'
     runs-on: ["self-hosted", "docker", "Linux"]
     permissions:
       contents: read
       packages: read
     container:
-      image: "ghcr.io/openvisualcloud/media-entertainment-ai-suite/ivsr_raisr:${{ github.sha }}"
+      image: "ghcr.io/openvisualcloud/media-entertainment-ai-suite/ivsr_raisr:${{ github.event_name == 'push' && 'latest' || github.sha }}"
+      credentials:
+        username: "${{ secrets.docker_registry_login   || github.repository_owner }}"
+        password: "${{ secrets.docker_registry_passkey || secrets.GITHUB_TOKEN }}"
+      env:
+        test_video_path: /opt/intel_ai_suite/test_videos
+        ffmpeg_path: /opt/intel_ai_suite
+      options: -u 0:0
+      volumes:
+        - /home/runner/workspace/assets/test_videos:/opt/intel_ai_suite/test_videos
+        - /mnt/hugepages-1Gi:/mnt/hugepages-1Gi
+        - /dev/vfio:/dev/vfio
+        - /dev/shm:/dev/shm
+        - /dev/dri/:/dev/dri/
+    steps:
+      - name: "Validation: Harden Runner"
+        uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
+        with:
+          egress-policy: audit
+
+      - name: "Validation: Checkout repository"
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: "Validation: Smoke test raisr OpenCL"
+        run: /opt/intel_ai_suite/ffmpeg -help filter=raisr_opencl
+
+      - name: "Validation: Run validation tests for RAISR OpenCL"
+        run: |
+          "${GITHUB_WORKSPACE}/tests/validation/create_wrong_files.sh"
+          "${GITHUB_WORKSPACE}/tests/validation/run_tests_avxout.sh" gpu
+          true
+
+  ivsr-container-run:
+    name: "Container Test Run: iVSR Validation"
+    needs: ivsr-image-build
+    if: github.event_name != 'push'
+    runs-on: ["self-hosted", "docker", "Linux"]
+    permissions:
+      contents: read
+      packages: read
+    container:
+      image: "ghcr.io/openvisualcloud/media-entertainment-ai-suite/ivsr_raisr:${{ github.event_name == 'push' && 'latest' || github.sha }}"
       credentials:
         username: "${{ secrets.docker_registry_login   || github.repository_owner }}"
         password: "${{ secrets.docker_registry_passkey || secrets.GITHUB_TOKEN }}"
@@ -102,6 +146,10 @@ jobs:
         ffmpeg_path: /opt/intel_ai_suite
       options: -u 0:0
       volumes:
+        - /mnt/hugepages-1Gi:/mnt/hugepages-1Gi
+        - /dev/vfio:/dev/vfio
+        - /dev/shm:/dev/shm
+        - /dev/dri/:/dev/dri/
         - /home/runner/workspace/assets/test_videos:/opt/intel_ai_suite/assets
         - /home/runner/workspace/model:/opt/intel_ai_suite/model
         - /home/runner/workspace/output:/workspace/output

@@ -99,14 +99,14 @@ jobs:
       - name: "${{ inputs.docker_image_name }}: Build and push image"
         uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
         with:
-          load: true
+          load: false
           push: "${{ env.DOCKER_IMAGE_PUSH }}"
           platforms: "linux/amd64/v4"
           file: "${{ env.DOCKER_FILE_PATH }}"
           tags: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
           target: runtime-stage
-          cache-from: type=gha,scope=${{ env.DOCKER_IMAGE_NAME }}
-          cache-to: type=gha,mode=max,scope=${{ env.DOCKER_IMAGE_NAME }}
+          cache-from: "type=gha,scope=${{ env.DOCKER_IMAGE_NAME }}"
+          cache-to: "type=gha,scope=${{ env.DOCKER_IMAGE_NAME }},mode=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'max' || 'min' }}"
           build-args: "${{ env.DOCKER_BUILD_ARGS }}"
 
   scan-docker-image:
@@ -135,7 +135,6 @@ jobs:
       - name: "${{ inputs.docker_image_name }}: Login to Docker Container Registry"
         uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
         if: ${{ env.DOCKER_REGISTRY_LOGIN == 'true' }}
-        continue-on-error: true
         with:
           registry: "${{ env.DOCKER_REGISTRY }}"
           username: "${{ secrets.docker_registry_login   || github.repository_owner }}"
@@ -143,7 +142,6 @@ jobs:
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy run vulnerability scanner on image"
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
-        continue-on-error: true
         with:
           image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
           format: "sarif"
@@ -151,7 +149,6 @@ jobs:
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload results as artifacts"
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # V4.4.3
-        continue-on-error: true
         with:
           name: "trivy-image-vulnerability-scanner.sarif"
           path: "${{ github.workspace }}/trivy-image-vulnerability-scanner.sarif"
@@ -159,13 +156,11 @@ jobs:
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload results to Security tab"
         uses: github/codeql-action/upload-sarif@2e230e8fe0ad3a14a340ad0815ddb96d599d2aff # v3.25.8
-        continue-on-error: true
         with:
           sarif_file: "${{ github.workspace }}/trivy-image-vulnerability-scanner.sarif"
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy in GitHub SBOM mode and submit results to Dependency Graph"
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
-        continue-on-error: true
         with:
           image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
           scan-type: "image"
@@ -176,7 +171,6 @@ jobs:
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy in SPDX SBOM mode"
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
-        continue-on-error: true
         with:
           image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
           scan-type: "image"
@@ -187,7 +181,6 @@ jobs:
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy upload sbom report as a Github artifact"
         uses: actions/upload-artifact@v4
-        continue-on-error: true
         with:
           name: "trivy-image-sbom-report.spdx"
           path: "${{ github.workspace }}/dependency-results.spdx"
