@@ -13,6 +13,9 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: read
+
 env:
   COVERITY_PROJECT: 'Media-Entertainment-AI-Suite'
   COVERITY_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
@@ -21,7 +24,7 @@ env:
   VERSION: ${{ github.sha }}
 jobs:
   coverity-diff:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -32,9 +35,21 @@ jobs:
         run: |
           sudo apt-get update && \
           sudo apt-get install --no-install-recommends -y \
-            build-essential git autoconf automake libtool cmake \
-            yasm nasm pkg-config libx264-dev libx265-dev libass-dev libfreetype6-dev \
-            libsdl2-dev libvorbis-dev libvpx-dev && \
+            build-essential \
+            git autoconf \
+            automake \
+            libtool \
+            cmake \
+            yasm \
+            nasm \
+            pkg-config \
+            libx264-dev \
+            libx265-dev \
+            libass-dev \
+            libfreetype6-dev \
+            libsdl2-dev \
+            libvorbis-dev \
+            libvpx-dev && \
           curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
           curl -fsSL https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor | sudo tee /usr/share/keyrings/intel-graphics-archive-keyring.gpg > /dev/null && \
           echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/intel-oneAPI.list && \
@@ -52,23 +67,50 @@ jobs:
           "${GITHUB_WORKSPACE}/.github/coverity/install_coverity.sh"
           echo "/opt/coverity/cxx/cov-analysis-linux64-2024.6.1/bin" >> "$GITHUB_PATH"
 
+      - name: Preparation of Baseline, build RAISR library
+        shell: bash
+        env:
+          RAISR_REPO: "https://github.com/OpenVisualCloud/Video-Super-Resolution-Library"
+          RAISR_BRANCH: "v23.11.1"
+        run: |
+          . "${GITHUB_WORKSPACE}/scripts/common.sh" && \
+          git_repo_download_strip_unpack "${RAISR_REPO}" "${RAISR_BRANCH}" "${GITHUB_WORKSPACE}/Video-Super-Resolution-Library" && \
+          "${GITHUB_WORKSPACE}/Video-Super-Resolution-Library/build.sh" -DENABLE_RAISR_OPENCL=ON \
+            -DCMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;" \
+            -DCMAKE_C_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp" \
+            -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp"
+
       - name: Preparation of Baseline FFmpeg
         shell: bash
         env:
           FFMPEG_REPO: "https://github.com/FFmpeg/FFmpeg"
           FFMPEG_VERSION: "n7.1"
-          RAISR_REPO: "https://github.com/OpenVisualCloud/Video-Super-Resolution-Library"
-          RAISR_BRANCH: "v23.11.1"
         run: |
           . "${GITHUB_WORKSPACE}/scripts/common.sh" && \
-          git_repo_download_strip_unpack "${FFMPEG_REPO}" "refs/tags/${FFMPEG_VERSION}" "${GITHUB_WORKSPACE}/ffmpeg" && \
-          git_repo_download_strip_unpack "${RAISR_REPO}" "${RAISR_BRANCH}" "${GITHUB_WORKSPACE}/Video-Super-Resolution-Library"
+          git_repo_download_strip_unpack "${FFMPEG_REPO}" "refs/tags/${FFMPEG_VERSION}" "${GITHUB_WORKSPACE}/ffmpeg"
 
       - name: Build and Scan of Baseline FFmpeg
         shell: bash
+        continue-on-error: true
         working-directory: "${{ github.workspace }}/ffmpeg"
         run: |
-          ./configure --enable-gpl --enable-libx264 --enable-libx265 --enable-libass --enable-libfreetype --enable-libvorbis --enable-libvpx && \
+          ./configure \
+            --enable-opencl  \
+            --disable-shared \
+            --disable-debug  \
+            --disable-doc    \
+            --enable-static  \
+            --enable-gpl     \
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-libass  \
+            --enable-libfreetype \
+            --enable-libvorbis   \
+            --enable-libvpx      \
+            --enable-cross-compile \
+            --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
+            --extra-cflags="-fopenmp -I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp -I/include" \
+            --extra-ldflags="-fopenmp -L/opt/intel/oneapi/ipp/latest/lib -L/lib -L/runtime/lib/intel64 -L/runtime/3rdparty/tbb/lib" && \
           cov-build --dir cov-int-baseline make -j"$(nproc)" && \
           tar -czf cov-baseline.tar.gz cov-int-baseline
 
@@ -76,7 +118,29 @@ jobs:
         shell: bash
         run: |
           patch -d "${GITHUB_WORKSPACE}/ffmpeg" -p1 < "${GITHUB_WORKSPACE}/patches/"*
-          "${GITHUB_WORKSPACE}/Video-Super-Resolution-Library/build.sh" -DENABLE_RAISR_OPENCL=ON \
-            -DCMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;" \
-            -DCMAKE_C_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp" \
-            -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp"
+
+      - name: Preparation for Patched FFmpeg
+        shell: bash
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}/ffmpeg
+        run: |
+          ./configure \
+            --enable-libipp  \
+            --enable-opencl  \
+            --disable-shared \
+            --disable-debug  \
+            --disable-doc    \
+            --enable-static  \
+            --enable-gpl     \
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-libass  \
+            --enable-libfreetype   \
+            --enable-libvorbis     \
+            --enable-libvpx        \
+            --enable-cross-compile \
+            --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
+            --extra-cflags="-fopenmp -I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp -I/include" \
+            --extra-ldflags="-fopenmp -L/opt/intel/oneapi/ipp/latest/lib -L/lib -L/runtime/lib/intel64 -L/runtime/3rdparty/tbb/lib" && \
+          cov-build --dir cov-int-patched make -j"$(nproc)" && \
+          tar -czf cov-patched.tar.gz cov-int-patched

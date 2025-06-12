@@ -70,7 +70,7 @@ jobs:
     name: "${{ inputs.docker_image_name }}: Performing build of Docker image from Dockerfile."
     runs-on: ["self-hosted", "docker", "Linux"]
     permissions:
-      contents: write
+      contents: read
       packages: write
     timeout-minutes: 240
     steps:
@@ -99,14 +99,14 @@ jobs:
       - name: "${{ inputs.docker_image_name }}: Build and push image"
         uses: docker/build-push-action@1a162644f9a7e87d8f4b053101d1d9a712edc18c # v6.3.0
         with:
-          load: true
+          load: false
           push: "${{ env.DOCKER_IMAGE_PUSH }}"
           platforms: "linux/amd64/v4"
           file: "${{ env.DOCKER_FILE_PATH }}"
           tags: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
           target: runtime-stage
-          cache-from: type=gha,scope=${{ env.DOCKER_IMAGE_NAME }}
-          cache-to: type=gha,mode=max,scope=${{ env.DOCKER_IMAGE_NAME }}
+          cache-from: "type=gha,scope=${{ env.DOCKER_IMAGE_NAME }}"
+          cache-to: "type=gha,scope=${{ env.DOCKER_IMAGE_NAME }},mode=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'max' || 'min' }}"
           build-args: "${{ env.DOCKER_BUILD_ARGS }}"
 
   scan-docker-image:
