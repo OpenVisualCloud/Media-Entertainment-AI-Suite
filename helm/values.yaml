@@ -13,8 +13,9 @@ output_dir: /home/spr-lxx/workspace/output/
 # Set directory path which include IR file (.xml and .bin)
 model_dir: /home/spr-lxx/workspace/ivsr/ivsr_2024.05/SVP_Basic/dunet_2024.01/INT8-performance/
 
-image_registry: "docker.io"
-image_tag: "ivsr_raisr:25.04-alpha"
+image_registry: "ghcr.io"
+image_name: "openvisualcloud/media-entertainment-ai-suite/ivsr_raisr"
+image_tag: "25.04-alpha"
 # Filter Configuration
 # One service only support select one filter from ivsr and raisr to process videos.
 # Select either ivsr or raisr for video processing by setting the 'selected' property to true.

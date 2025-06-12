@@ -28,9 +28,15 @@ spec:
         app.kubernetes.io/part-of: intel-ai-suite-server
         app.kubernetes.io/managed-by: "{{ .Release.Service }}"
     spec:
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        runAsUser: 13000
+        runAsGroup: 13000
+        fsGroup: 13000
       containers:
         - name: ai-suite-server
-          image: "{{ .Values.image_registry }}/{{ .Values.image_tag }}"
+          image: "{{ .Values.image_registry }}/{{ .Values.image_name }}:{{ .Values.image_tag }}"
           imagePullPolicy: IfNotPresent
           securityContext:
             runAsNonRoot: true
