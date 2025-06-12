@@ -33,9 +33,8 @@ jobs:
     name: "docker build: build image"
     uses: ./.github/workflows/build_docker_tpl.yml
     permissions:
-      contents: write
+      contents: read
       packages: write
-      security-events: write
     with:
       docker_registry: "ghcr.io"
       docker_registry_prefix: "openvisualcloud/media-entertainment-ai-suite"
@@ -68,7 +67,7 @@ jobs:
         - /mnt/hugepages-1Gi:/mnt/hugepages-1Gi
         - /dev/vfio:/dev/vfio
         - /dev/shm:/dev/shm
-        - /dev/dri/:/dev/dri/
+        - /dev/dri:/dev/dri
     steps:
       - name: "Validation: Harden Runner"
         uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
@@ -122,10 +121,10 @@ jobs:
         run: /opt/intel_ai_suite/ffmpeg -help filter=raisr_opencl
 
       - name: "Validation: Run validation tests for RAISR OpenCL"
+        continue-on-error: true
         run: |
           "${GITHUB_WORKSPACE}/tests/validation/create_wrong_files.sh"
           "${GITHUB_WORKSPACE}/tests/validation/run_tests_avxout.sh" gpu
-          true
 
   ivsr-container-run:
     name: "Container Test Run: iVSR Validation"

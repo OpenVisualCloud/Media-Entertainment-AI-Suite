@@ -240,4 +240,8 @@ echo "Errors in test_logs: ${test_logs_error}"
 echo "Errors in test_bad_input: ${test_bad_input_error}"
 echo "Summary job resulting in exit code: ${error}"
 
+DIRDATE="/opt/intel_ai_suite/test_videos/.logs-comopsed-output/$(date +%s__%H:%M_%d-%m-%Y)/"
+mkdir -p "${DIRDATE}"
+cat "${ffmpeg_path}/test_bad_input_logs/"* "${ffmpeg_path}/test_logs/"* > "${DIRDATE}/composed-oputput.log"
+
 exit "${error}"
