@@ -62,7 +62,7 @@ jobs:
       env:
         test_video_path: /opt/intel_ai_suite/test_videos
         ffmpeg_path: /opt/intel_ai_suite
-      options: -u 0:0
+      options: -u 0:0 --privileged
       volumes:
         - /home/runner/workspace/assets/test_videos:/opt/intel_ai_suite/test_videos
         - /mnt/hugepages-1Gi:/mnt/hugepages-1Gi
@@ -102,13 +102,13 @@ jobs:
       env:
         test_video_path: /opt/intel_ai_suite/test_videos
         ffmpeg_path: /opt/intel_ai_suite
-      options: -u 0:0
+      options: -u 0:0 --privileged
       volumes:
         - /home/runner/workspace/assets/test_videos:/opt/intel_ai_suite/test_videos
         - /mnt/hugepages-1Gi:/mnt/hugepages-1Gi
         - /dev/vfio:/dev/vfio
         - /dev/shm:/dev/shm
-        - /dev/dri/:/dev/dri/
+        - /dev/dri:/dev/dri
     steps:
       - name: "Validation: Harden Runner"
         uses: step-security/harden-runner@17d0e2bd7d51742c71671bd19fa12bdc9d40a3d6 # v2.8.1
@@ -144,12 +144,12 @@ jobs:
         test_video_path: /opt/intel_ai_suite/assets
         test_model_path: /opt/intel_ai_suite/model/ivsr_2025.03
         ffmpeg_path: /opt/intel_ai_suite
-      options: -u 0:0
+      options: -u 0:0 --privileged
       volumes:
         - /mnt/hugepages-1Gi:/mnt/hugepages-1Gi
         - /dev/vfio:/dev/vfio
         - /dev/shm:/dev/shm
-        - /dev/dri/:/dev/dri/
+        - /dev/dri:/dev/dri
         - /home/runner/workspace/assets/test_videos:/opt/intel_ai_suite/assets
         - /home/runner/workspace/model:/opt/intel_ai_suite/model
         - /home/runner/workspace/output:/workspace/output

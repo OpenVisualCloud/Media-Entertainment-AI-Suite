@@ -1,6 +1,6 @@
 #!/bin/bash
 
-docker_tag="docker.io/ivsr_raisr:25.04-alpha"
+docker_tag="ghcr.io/openvisualcloud/media-entertainment-ai-suite/ivsr_raisr:latest"
 
 function build_docker_image()
 {

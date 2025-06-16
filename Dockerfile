@@ -35,7 +35,6 @@ ENV RAISR_DIR="${WORKSPACE}/raisr"
 ENV FFMPEG_DIR="${WORKSPACE}/ffmpeg"
 
 COPY scripts/common.sh /opt/intel/common.sh
-COPY patches/* /opt/intel/ffmpeg/patches/
 
 SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
 WORKDIR "${WORKSPACE}"
@@ -218,8 +217,12 @@ RUN cmake \
 RUN source /opt/intel/common.sh && \
     git_repo_download_strip_unpack "${FFMPEG_REPO}" "refs/tags/${FFMPEG_VERSION}" "${FFMPEG_DIR}" && \
       patch -d "${FFMPEG_DIR}" -p1 < "${IVSR_DIR}/ivsr_ffmpeg_plugin/patches/"*.patch && \
-      patch -d "${FFMPEG_DIR}" -p1 < "/opt/intel/ffmpeg/patches/"* && \
     git_repo_download_strip_unpack "${RAISR_REPO}" "${RAISR_BRANCH}" "${RAISR_DIR}" && \
+      sed -i 's/#include "internal.h"/\/\/ #include "internal.h"/g' "${RAISR_DIR}/ffmpeg/"*.c && \
+      sed -i 's/"filters_2x\/filters_lowres"/"\/filters_2x\/filters_lowres"/g' "${RAISR_DIR}/ffmpeg/"*.c && \
+      sed -i 's/input_frames = (AVHWFramesContext\*)inlink/FilterLink \*inl = ff_filter_link(inlink); input_frames = (AVHWFramesContext\*)inl/g' "${RAISR_DIR}/ffmpeg/"*.c && \
+      patch -F 20 -d "${FFMPEG_DIR}" -p1 -i <(cat "${RAISR_DIR}/ffmpeg/"*.patch) && \
+      cp "${RAISR_DIR}/ffmpeg/"*.c "${FFMPEG_DIR}/libavfilter/" && \
       cp -r "${RAISR_DIR}/filters_2x" "${INSTALL_PREFIX}/filters_2x" && \
       cp -r "${RAISR_DIR}/filters_1.5x" "${INSTALL_PREFIX}/filters_1.5x" && \
     ./build.sh -DENABLE_RAISR_OPENCL=ON \
@@ -298,7 +301,7 @@ RUN apt-get update --fix-missing && \
     apt-get full-upgrade -y && \
     apt-get install --no-install-recommends -y \
       ca-certificates \
-      sudo curl unzip tar less \
+      sudo curl unzip tar less jq bc pciutils \
       gpg \
       libx264-1* \
       libx265-1* \
@@ -334,20 +337,34 @@ RUN curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-P
     apt-get install --no-install-recommends -y \
       intel-opencl-icd \
       intel-level-zero-gpu \
-      intel-oneapi-ipp-2022.0 && \
+      intel-oneapi-ipp-2022.0 \
+      ocl-icd-libopencl1 && \
     apt-get purge -y linux-libc-dev && \
     apt remove -y libc-dev-bin libcrypt-dev libnsl-dev libpcre16-3 libpcre32-3 libpcrecpp0v5 libtirpc-dev rpcsvc-proto && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=build-stage --chown=ivsr:ivsr /install/bin/ffmpeg /usr/local/bin/
-COPY --from=build-stage --chown=ivsr:ivsr /install/lib/*so /usr/local/lib
-COPY --from=build-stage --chown=ivsr:ivsr /install/runtime/lib/intel64/*so /usr/local/lib
-COPY --from=build-stage --chown=ivsr:ivsr /install/runtime/3rdparty/tbb/lib/*so /usr/local/lib
-COPY --from=build-stage --chown=ivsr:ivsr /install/workspace/opencv-*-openvino-*/install/lib/*so /usr/local/lib
-COPY --from=build-stage --chown=ivsr:ivsr /install/workspace/opencv-*-openvino-*/install/bin/*   /usr/local/bin
+COPY --from=build-stage --chown=ivsr:ivsr /install/lib /usr/local/lib
+COPY --from=build-stage --chown=ivsr:ivsr /install/runtime/lib/intel64 /usr/local/lib
+COPY --from=build-stage --chown=ivsr:ivsr /install/runtime/3rdparty/tbb/lib /usr/local/lib
+COPY --from=build-stage --chown=ivsr:ivsr /install/workspace/opencv-*-openvino-*/install/lib /usr/local/lib
+COPY --from=build-stage --chown=ivsr:ivsr /install/workspace/opencv-*-openvino-*/install/bin   /usr/local/lib
+COPY --from=build-stage --chown=ivsr:ivsr /install/workspace/opencv-*-openvino-*/install/bin   /usr/local/lib
 COPY --from=build-stage --chown=ivsr:ivsr /install/filters_1.5x /filters_1.5x
 COPY --from=build-stage --chown=ivsr:ivsr /install/filters_2x   /filters_2x
+
+WORKDIR /tmp/gpu_deps
+RUN curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17384.11/intel-igc-core_1.0.17384.11_amd64.deb && \
+    curl -L -O https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17384.11/intel-igc-opencl_1.0.17384.11_amd64.deb && \
+    curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/intel-level-zero-gpu-dbgsym_1.3.30508.7_amd64.ddeb && \
+    curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/intel-level-zero-gpu_1.3.30508.7_amd64.deb && \
+    curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/intel-opencl-icd-dbgsym_24.31.30508.7_amd64.ddeb && \
+    curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/intel-opencl-icd_24.31.30508.7_amd64.deb && \
+    curl -L -O https://github.com/intel/compute-runtime/releases/download/24.31.30508.7/libigdgmm12_22.4.1_amd64.deb && \
+    dpkg -i ./*.deb && rm -Rf /tmp/gpu_deps/*
+
+WORKDIR /opt/intel_ai_suite
 
 ENV LD_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib:/usr/local/lib:/usr/local/lib64:/usr/lib"
 RUN ln -s /usr/local/bin/ffmpeg /opt/intel_ai_suite/ffmpeg && \
@@ -357,6 +374,9 @@ RUN ln -s /usr/local/bin/ffmpeg /opt/intel_ai_suite/ffmpeg && \
     echo "------------------===CHECK-START===------------------" && \
     ffmpeg -buildconf && \
     echo "------------------===CHECKS-PASSED===------------------"
+
+ENV LIBVA_DRIVER_NAME=iHD
+ENV LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
 
 USER "ivsr"
 SHELL [ "/bin/bash", "-c" ]
