@@ -163,16 +163,16 @@ jobs:
         with:
           sarif_file: "${{ github.workspace }}/trivy-image-vulnerability-scanner.sarif"
 
-      - name: "${{ inputs.docker_image_name }}: Scanner Trivy in GitHub SBOM mode and submit results to Dependency Graph"
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
-        continue-on-error: true
-        with:
-          image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
-          scan-type: "image"
-          format: "github"
-          scanners: "vuln,secret,misconfig,license"
-          output: "dependency-results.sbom.json"
-          github-pat: ${{ secrets.GITHUB_TOKEN }}
+      # - name: "${{ inputs.docker_image_name }}: Scanner Trivy in GitHub SBOM mode and submit results to Dependency Graph"
+      #   uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
+      #   continue-on-error: true
+      #   with:
+      #     image-ref: "${{ env.DOCKER_IMAGE_BASE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}"
+      #     scan-type: "image"
+      #     format: "github"
+      #     scanners: "vuln,secret,misconfig,license"
+      #     output: "dependency-results.sbom.json"
+      #     github-pat: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "${{ inputs.docker_image_name }}: Scanner Trivy in SPDX SBOM mode"
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # v0.30.0
