@@ -335,6 +335,8 @@ RUN curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-P
       intel-opencl-icd \
       intel-level-zero-gpu \
       intel-oneapi-ipp-2022.0 && \
+    apt-get purge -y linux-libc-dev && \
+    apt remove -y libc-dev-bin libcrypt-dev libnsl-dev libpcre16-3 libpcre32-3 libpcrecpp0v5 libtirpc-dev rpcsvc-proto && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
