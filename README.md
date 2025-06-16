@@ -16,7 +16,7 @@ Key workloads supported include:
 - Video Bit Rate Optimization (SVP): Reduces video bit rate without compromising video quality, and is compatible with standard CODECs such as AVC, HEVC and AV1. Helps to reduce costs through lower transmission and storage requirements.
 
 The libraries included in the suite are supported on both Intel® Xeon™ CPUs and Intel® Data Center GPUs, and can be easily integrated into existing workflows using FFmpeg plugins provided as part of the libraries.
-The libraries are also available as part of the [Intel® Edge AI Suites](https://github.com/open-edge-platform/edge-ai-suites) platform, the [Intel® Tiber™ Broadcast Suite](https://github.com/OpenVisualCloud/Intel-Tiber-Broadcast-Suite), and the [Open Visual Cloud project](https://github.com/OpenVisualCloud/Intel-Tiber-Broadcast-Suite).
+The libraries are also available as part of the [Intel® Edge AI Suites](https://github.com/open-edge-platform/edge-ai-suites) platform, the [Intel® Tiber™ Broadcast Suite](https://github.com/OpenVisualCloud/Intel-Tiber-Broadcast-Suite), and the [Open Visual Cloud project](https://github.com/OpenVisualCloud).
 
 ### Key Features
 - **Video Super Resolution:** Includes support for four pre-trained models, optimized for best performance on Intel® Xeon™ CPUs and Intel® Datacenter GPU hardware.
