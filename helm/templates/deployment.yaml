@@ -1,14 +1,14 @@
 ## Copyright (C) 2025 Intel Corporation
 ##
 ## SPDX-License-Identifier: BSD-3-Clause
-
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: ai-suite-server
   namespace: "{{ .Release.Namespace }}"
   labels:
-    helm.sh/chart: "{{ printf \"%s-%s\" .Chart.Name .Chart.Version | trunc 63 | replace \"+\" \"_\" | trimSuffix \"_\" }}"
+    helm.sh/chart: '{{ printf "%s-%s" .Chart.Name .Chart.Version | trunc 63 | replace "+" "_" | trimSuffix "_" }}'
     helm.sh/release-name: "{{ .Release.Name }}"
     app.kubernetes.io/version: "{{ .Chart.AppVersion }}"
     app.kubernetes.io/instance: "{{ .Release.Name }}"
@@ -21,7 +21,7 @@ spec:
   template:
     metadata:
       labels:
-        helm.sh/chart: "{{ printf \"%s-%s\" .Chart.Name .Chart.Version | trunc 63 | replace \"+\" \"_\" | trimSuffix \"_\" }}"
+        helm.sh/chart: '{{ printf "%s-%s" .Chart.Name .Chart.Version | trunc 63 | replace "+" "_" | trimSuffix "_" }}'
         helm.sh/release-name: "{{ .Release.Name }}"
         app.kubernetes.io/version: "{{ .Chart.AppVersion }}"
         app.kubernetes.io/instance: "{{ .Release.Name }}"
@@ -49,8 +49,6 @@ spec:
             seccompProfile:
               type: RuntimeDefault
           resources:
-          # TBD - figure out some basic resource requests
-          #       regarding gpu.intel.com/i915: 1
             limits:
               cpu: "{{ .Values.resources.limits.cpu }}"
               memory: "{{ .Values.resources.limits.memory }}"
