@@ -27,7 +27,13 @@ jobs:
   coverity-diff:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout Repository
+      - name: Checkout VSR Repository
+        uses: actions/checkout@v4
+        with:
+          repository: OpenVisualCloud/Video-Super-Resolution-Library
+          path: video-super-resolution-library
+
+      - name: Checkout meAIs Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -133,7 +139,7 @@ jobs:
       - name: Apply RAISR Patch
         shell: bash
         run: |
-          patch -d "${GITHUB_WORKSPACE}/ffmpeg" -p1 < "${GITHUB_WORKSPACE}/patches/"*
+          patch -d "${GITHUB_WORKSPACE}/ffmpeg" -p1 < "${GITHUB_WORKSPACE}/video-super-resolution-library/patches/"*
 
       - name: Preparation for Patched FFmpeg
         shell: bash
