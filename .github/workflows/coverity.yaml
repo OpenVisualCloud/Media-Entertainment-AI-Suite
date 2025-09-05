@@ -1,0 +1,228 @@
+name: Coverity Build
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run scans on'
+        default: 'main'
+        type: string
+  workflow_call:
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+env:
+  COVERITY_PROJECT: 'Media-Entertainment-AI-Suite'
+  COVERITY_EMAIL: ${{ secrets.COVERITY_SCAN_EMAIL }}
+  COVERITY_TOKEN: ${{ secrets.COVERITY_SCAN_TOKEN }}
+  DESCRIPTION: ${{ github.ref_name }}
+  VERSION: ${{ github.sha }}
+  DEBIAN_FRONTEND: noninteractive
+jobs:
+  coverity-diff:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout VSR Repository
+        uses: actions/checkout@v4
+        with:
+          repository: OpenVisualCloud/Video-Super-Resolution-Library
+          path: video-super-resolution-library
+
+      - name: Checkout meAIs Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install FFmpeg Build Dependencies
+        run: |
+          sudo apt-get update && \
+          sudo apt-get install --no-install-recommends -y \
+            build-essential \
+            git autoconf \
+            automake \
+            libtool \
+            cmake \
+            yasm \
+            nasm \
+            pkg-config \
+            libx264-dev \
+            libx265-dev \
+            libass-dev \
+            libfreetype6-dev \
+            libsdl2-dev \
+            libvorbis-dev \
+            libvpx-dev && \
+          curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null && \
+          curl -fsSL https://repositories.intel.com/graphics/intel-graphics.key | gpg --dearmor | sudo tee /usr/share/keyrings/intel-graphics-archive-keyring.gpg > /dev/null && \
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/intel-oneAPI.list && \
+          echo "deb [signed-by=/usr/share/keyrings/intel-graphics-archive-keyring.gpg arch=amd64] https://repositories.intel.com/graphics/ubuntu jammy flex" | sudo tee /etc/apt/sources.list.d/intel-graphics.list && \
+          sudo apt-get update --fix-missing && \
+          sudo apt-get install --no-install-recommends -y \
+            opencl-headers \
+            ocl-icd-opencl-dev \
+            intel-oneapi-ipp-devel-2022.0
+
+      - name: Apt repos openvino install apt
+        run: |
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/openvino/2024 ubuntu22 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2024.list && \
+          sudo apt-get update && \
+          sudo apt-cache search openvino && \
+          sudo apt-get install -y  openvino-2024.5.0 && \
+          sudo apt-get install -y --no-install-recommends --fix-missing \
+            ca-certificates tar g++ wget \
+            pkg-config nasm yasm libglib2.0-dev flex bison \
+            gobject-introspection libgirepository1.0-dev \
+            python3-dev libx11-dev libxv-dev libxt-dev libasound2-dev \
+            libpango1.0-dev libtheora-dev libvisual-0.4-dev libgl1-mesa-dev \
+            libcurl4-gnutls-dev librtmp-dev libx264-dev \
+            libx265-dev libde265-dev libva-dev libtbb-dev
+
+      - name: Download and Install Coverity Tools
+        env:
+          LANGUAGE: cxx
+        run: |
+          "${GITHUB_WORKSPACE}/.github/coverity/install_coverity.sh"
+          echo "/opt/coverity/cxx/cov-analysis-linux64-2024.6.1/bin" >> "$GITHUB_PATH"
+
+      - name: Preparation of Baseline, build RAISR library
+        shell: bash
+        env:
+          RAISR_REPO: "https://github.com/OpenVisualCloud/Video-Super-Resolution-Library"
+          RAISR_BRANCH: "v23.11.1"
+        run: |
+          . "${GITHUB_WORKSPACE}/scripts/common.sh" && \
+          git_repo_download_strip_unpack "${RAISR_REPO}" "${RAISR_BRANCH}" "${GITHUB_WORKSPACE}/Video-Super-Resolution-Library" && \
+          "${GITHUB_WORKSPACE}/Video-Super-Resolution-Library/build.sh" -DENABLE_RAISR_OPENCL=ON \
+            -DCMAKE_LIBRARY_PATH="/opt/intel/oneapi/ipp/latest/lib;${PREFIX}/lib;" \
+            -DCMAKE_C_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp" \
+            -DCMAKE_CXX_FLAGS="-I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp"
+
+      - name: Preparation of Baseline FFmpeg
+        shell: bash
+        env:
+          FFMPEG_REPO: "https://github.com/FFmpeg/FFmpeg"
+          FFMPEG_VERSION: "n7.1"
+        run: |
+          . "${GITHUB_WORKSPACE}/scripts/common.sh" && \
+          git_repo_download_strip_unpack "${FFMPEG_REPO}" "refs/tags/${FFMPEG_VERSION}" "${GITHUB_WORKSPACE}/ffmpeg"
+
+      - name: Build and Scan of Baseline FFmpeg
+        shell: bash
+        continue-on-error: true
+        working-directory: "${{ github.workspace }}/ffmpeg"
+        run: |
+          ./configure \
+            --enable-opencl  \
+            --disable-shared \
+            --disable-debug  \
+            --disable-doc    \
+            --enable-static  \
+            --enable-gpl     \
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-libass  \
+            --enable-libfreetype \
+            --enable-libvorbis   \
+            --enable-libvpx      \
+            --enable-cross-compile \
+            --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
+            --extra-cflags="-fopenmp -I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp -I/include" \
+            --extra-ldflags="-fopenmp -L/opt/intel/oneapi/ipp/latest/lib -L/lib -L/runtime/lib/intel64 -L/runtime/3rdparty/tbb/lib" && \
+          cov-build --dir cov-int-baseline make -j"$(nproc)" && \
+          tar -czf cov-baseline.tar.gz cov-int-baseline
+
+      - name: Apply RAISR Patch
+        shell: bash
+        run: |
+          patch -d "${GITHUB_WORKSPACE}/ffmpeg" -p1 < "${GITHUB_WORKSPACE}/video-super-resolution-library/patches/"*
+
+      - name: Preparation for Patched FFmpeg
+        shell: bash
+        continue-on-error: true
+        working-directory: ${{ github.workspace }}/ffmpeg
+        run: |
+          ./configure \
+            --enable-libipp  \
+            --enable-opencl  \
+            --disable-shared \
+            --disable-debug  \
+            --disable-doc    \
+            --enable-static  \
+            --enable-gpl     \
+            --enable-libx264 \
+            --enable-libx265 \
+            --enable-libass  \
+            --enable-libfreetype   \
+            --enable-libvorbis     \
+            --enable-libvpx        \
+            --enable-cross-compile \
+            --extra-libs='-lraisr -lstdc++ -lippcore -lippvm -lipps -lippi -lm' \
+            --extra-cflags="-fopenmp -I/opt/intel/oneapi/ipp/latest/include -I/opt/intel/oneapi/ipp/latest/include/ipp -I/include" \
+            --extra-ldflags="-fopenmp -L/opt/intel/oneapi/ipp/latest/lib -L/lib -L/runtime/lib/intel64 -L/runtime/3rdparty/tbb/lib" && \
+          cov-build --dir cov-int-patched make -j"$(nproc)" && \
+          tar -czf cov-patched.tar.gz cov-int-patched
+
+      # - name: Preparation for system wide installation
+      #   run: |
+      #     mkdir -p /workspace/ivsr
+      #     set -e -o pipefail
+      #     apt-get update && \
+      #     apt-get install -y --no-install-recommends --fix-missing \
+      #       curl \
+      #       ca-certificates \
+      #       gpg-agent \
+      #       software-properties-common \
+      #       autoconf \
+      #       automake \
+      #       build-essential && \
+      #     apt-get install -y --no-install-recommends --fix-missing \
+      #       apt-utils \
+      #       cmake cython3 flex \
+      #       bison gcc g++ git make \
+      #       patch pkg-config wget \
+      #       libdrm-dev libudev-dev libtool libusb-1.0-0-dev \
+      #       xz-utils ocl-icd-opencl-dev opencl-headers \
+
+# Build iVSR SDK
+# cp -r ./ivsr_sdk ${WORKSPACE}/ivsr/ivsr_sdk
+# mkdir -p ${WORKSPACE}/ivsr/ivsr_sdk
+# mkdir -p build && cd build && \
+#     cmake .. -DENABLE_LOG=OFF -DENABLE_PERF=OFF -DENABLE_THREADPROCESS=ON -DCMAKE_BUILD_TYPE=Release && \
+#     make -j16 && \
+#     make install && \
+#     echo "Building iVSR SDK finished."
+
+# FFMPEG_REPO=https://github.com/FFmpeg/FFmpeg.git
+# FFMPEG_VERSION=n7.1
+# FFMPEG_IVSR_SDK_PLUGIN_DIR=${WORKSPACE}/ivsr/ivsr_ffmpeg_plugin
+
+# mkdir -p ${FFMPEG_IVSR_SDK_PLUGIN_DIR}/ffmpeg && \
+# cd ${FFMPEG_IVSR_SDK_PLUGIN_DIR}/ffmpeg || exit1
+# git config --global user.email "noname@example.com" && \
+#     git config --global user.name "no name" && \
+#     git clone ${FFMPEG_REPO} . && \
+#     git checkout ${FFMPEG_VERSION}
+
+# COPY ./ivsr_ffmpeg_plugin/patches/*.patch ./
+# for patch_file in $(find -iname "*.patch" | sort -n); do \
+#     echo "Applying: ${patch_file}"; \
+#     git am --whitespace=fix ${patch_file}; \
+#     done
+
+#   ./configure \
+#     --enable-gpl \
+#     --enable-nonfree \
+#     --disable-static \
+#     --disable-doc \
+#     --enable-shared \
+#     --enable-version3 \
+#     --enable-libivsr \
+#     --enable-libx264 \
+#     --enable-libx265 && \
+#     make -j16 && \
+#     make install
