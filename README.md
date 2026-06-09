@@ -166,7 +166,7 @@ This pod empolys ffmpeg to process videos located within the `test_video_dir`, g
 Users can determine whether the service is completed by checking the status of the `ai-suite-server-xxx` pod. If the status is completed, it means that the service is completed and all videos have been processed.
 And then can check output videos in the `output_dir` directory on host, the output files are named ivsr_output_xxx.mp4 or raisr_output_xxx.mp4.
 
-It needs to terminate the ai-suite service via uninstalling Helm Charts after the serive is completed.
+Terminate the ai-suite service by uninstalling the Helm chart after the service is completed.
 
 ```bash
 helm uninstall ai-suite
